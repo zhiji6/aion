@@ -1,26 +1,3 @@
-/*
- * Copyright (c) 2017-2018 Aion foundation.
- *
- *     This file is part of the aion network project.
- *
- *     The aion network project is free software: you can redistribute it
- *     and/or modify it under the terms of the GNU General Public License
- *     as published by the Free Software Foundation, either version 3 of
- *     the License, or any later version.
- *
- *     The aion network project is distributed in the hope that it will
- *     be useful, but WITHOUT ANY WARRANTY; without even the implied
- *     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *     See the GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with the aion network project source files.
- *     If not, see <https://www.gnu.org/licenses/>.
- *
- * Contributors:
- *     Aion foundation.
- */
-
 package org.aion.zero.impl.sync.msg;
 
 import java.util.Collections;
@@ -34,7 +11,6 @@ import org.aion.p2p.Ver;
 import org.aion.rlp.RLP;
 import org.aion.rlp.RLPElement;
 import org.aion.rlp.RLPList;
-import org.aion.rlp.Value;
 import org.aion.zero.impl.sync.Act;
 import org.aion.zero.impl.sync.TrieDatabase;
 
@@ -44,10 +20,10 @@ import org.aion.zero.impl.sync.TrieDatabase;
  * @author Alexandra Roatis
  */
 public final class ResponseTrieState extends Msg {
-    private final TrieDatabase dbType;
     private final ByteArrayWrapper nodeKey; // data of 32 bytes
     private final byte[] nodeValue;
     private final Map<ByteArrayWrapper, byte[]> referencedNodes; // empty for leaf nodes
+    private final TrieDatabase dbType;
 
     /**
      * Constructor for trie node responses that represent leafs, i.e. a single key-value pair.
@@ -80,6 +56,10 @@ public final class ResponseTrieState extends Msg {
      * @param referencedNodes a map of key-value pairs referenced by the value of the requested key
      * @param dbType the blockchain database in which the key should be found
      * @throws NullPointerException if any of the given parameters are {@code null}
+     * @implNote The referenced nodes are purposefully not deep copied to minimize resource
+     *     instantiation. This is a reasonable choice given that these objects are created to be
+     *     encoded and transmitted over the network and therefore there is the expectation that they
+     *     will not be utilized further.
      */
     public ResponseTrieState(
             final ByteArrayWrapper nodeKey,
@@ -116,34 +96,20 @@ public final class ResponseTrieState extends Msg {
             if (list.size() != 4) {
                 return null;
             } else {
-
-                // decode the db type
-                Value type = Value.fromRlpEncoded(list.get(0).getRLPData());
-                TrieDatabase dbType;
-                if (!type.isString()) {
-                    return null;
-                } else {
-                    try {
-                        dbType = TrieDatabase.valueOf(type.asString());
-                    } catch (IllegalArgumentException e) {
-                        return null;
-                    }
-                }
-
                 // decode the key
-                Value hash = Value.fromRlpEncoded(list.get(1).getRLPData());
-                if (!hash.isBytes() || hash.asBytes().length != 32) {
+                byte[] hash = list.get(0).getRLPData();
+                if (hash.length != 32) {
                     return null;
                 }
 
                 // decode the value
-                Value value = Value.fromRlpEncoded(list.get(2).getRLPData());
-                if (!value.isBytes() || value.asBytes().length == 0) {
+                byte[] value = list.get(1).getRLPData();
+                if (value.length == 0) {
                     return null;
                 }
 
                 // decode the referenced nodes
-                RLPElement referenced = list.get(3);
+                RLPElement referenced = list.get(2);
                 if (!(referenced instanceof RLPList)) {
                     return null;
                 }
@@ -152,8 +118,16 @@ public final class ResponseTrieState extends Msg {
                     return null;
                 }
 
-                return new ResponseTrieState(
-                        ByteArrayWrapper.wrap(hash.asBytes()), value.asBytes(), nodes, dbType);
+                // decode the db type
+                byte[] type = list.get(3).getRLPData();
+                TrieDatabase dbType;
+                try {
+                    dbType = TrieDatabase.valueOf(new String(type));
+                } catch (IllegalArgumentException e) {
+                    return null;
+                }
+
+                return new ResponseTrieState(ByteArrayWrapper.wrap(hash), value, nodes, dbType);
             }
         }
     }
@@ -169,7 +143,7 @@ public final class ResponseTrieState extends Msg {
         }
 
         RLPList current;
-        Value hash, value;
+        byte[] hash, value;
         Map<ByteArrayWrapper, byte[]> nodes = new HashMap<>();
 
         for (RLPElement pair : referenced) {
@@ -179,18 +153,18 @@ public final class ResponseTrieState extends Msg {
             current = (RLPList) pair;
 
             // decode the key
-            hash = Value.fromRlpEncoded(current.get(0).getRLPData());
-            if (!hash.isBytes() || hash.asBytes().length != 32) {
+            hash = current.get(0).getRLPData();
+            if (hash.length != 32) {
                 return null;
             }
 
             // decode the value
-            value = Value.fromRlpEncoded(current.get(1).getRLPData());
-            if (!value.isBytes() || value.asBytes().length == 0) {
+            value = current.get(1).getRLPData();
+            if (value.length == 0) {
                 return null;
             }
 
-            nodes.put(new ByteArrayWrapper(hash.asBytes()), value.asBytes());
+            nodes.put(new ByteArrayWrapper(hash), value);
         }
 
         return nodes;
@@ -199,10 +173,10 @@ public final class ResponseTrieState extends Msg {
     @Override
     public byte[] encode() {
         return RLP.encodeList(
-                RLP.encodeString(dbType.toString()),
                 RLP.encodeElement(nodeKey.getData()),
                 RLP.encodeElement(nodeValue),
-                RLP.encodeList(encodeReferencedNodes()));
+                RLP.encodeList(encodeReferencedNodes(referencedNodes)),
+                RLP.encodeString(dbType.toString()));
     }
 
     /**
@@ -210,7 +184,7 @@ public final class ResponseTrieState extends Msg {
      *
      * @return an array of all the key-value pair encodings
      */
-    private byte[][] encodeReferencedNodes() {
+    static byte[][] encodeReferencedNodes(Map<ByteArrayWrapper, byte[]> referencedNodes) {
         byte[][] pairs = new byte[referencedNodes.size()][];
 
         int i = 0;
@@ -258,18 +232,5 @@ public final class ResponseTrieState extends Msg {
      */
     public Map<ByteArrayWrapper, byte[]> getReferencedNodes() {
         return referencedNodes;
-    }
-
-    @Override
-    public String toString() {
-        return "{db="
-                + dbType
-                + ", key="
-                + nodeKey
-                + ", value="
-                + nodeValue.length
-                + ", refs="
-                + referencedNodes.size()
-                + '}';
     }
 }
