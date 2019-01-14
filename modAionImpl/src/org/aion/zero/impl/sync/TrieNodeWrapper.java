@@ -24,6 +24,7 @@
 package org.aion.zero.impl.sync;
 
 import java.util.Map;
+import java.util.Objects;
 import org.aion.base.util.ByteArrayWrapper;
 import org.aion.zero.impl.sync.msg.ResponseTrieState;
 
@@ -103,5 +104,24 @@ public final class TrieNodeWrapper {
      */
     public byte[] getNodeValue() {
         return data.getNodeValue();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        TrieNodeWrapper that = (TrieNodeWrapper) o;
+        return peerId == that.peerId
+                && Objects.equals(displayId, that.displayId)
+                && Objects.equals(data, that.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(peerId, displayId, data);
     }
 }
