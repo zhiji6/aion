@@ -4,6 +4,11 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.aion.zero.impl.sync.TrieDatabase.DETAILS;
 import static org.aion.zero.impl.sync.TrieDatabase.STATE;
 import static org.aion.zero.impl.sync.TrieDatabase.STORAGE;
+import static org.aion.zero.impl.sync.msg.RequestTrieStateTest.altNodeKey;
+import static org.aion.zero.impl.sync.msg.RequestTrieStateTest.largeNodeKey;
+import static org.aion.zero.impl.sync.msg.RequestTrieStateTest.nodeKey;
+import static org.aion.zero.impl.sync.msg.RequestTrieStateTest.smallNodeKey;
+import static org.aion.zero.impl.sync.msg.RequestTrieStateTest.zeroNodeKey;
 import static org.aion.zero.impl.sync.msg.ResponseTrieState.encodeReferencedNodes;
 
 import java.util.ArrayList;
@@ -27,35 +32,13 @@ import org.junit.runner.RunWith;
 public class ResponseTrieStateTest {
 
     // keys
-    private static final ByteArrayWrapper nodeKey =
-            ByteArrayWrapper.wrap(
-                    new byte[] {
-                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                        22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
-                    });
-    private static final ByteArrayWrapper altNodeKey =
-            ByteArrayWrapper.wrap(
-                    new byte[] {
-                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                        21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-                    });
-    private static final ByteArrayWrapper zeroNodeKey = ByteArrayWrapper.wrap(new byte[32]);
-    private static final ByteArrayWrapper smallNodeKey =
-            ByteArrayWrapper.wrap(
-                    new byte[] {
-                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                        22, 23, 24, 25, 26, 27, 28, 29, 30, 31
-                    });
-    private static final ByteArrayWrapper largeNodeKey =
-            ByteArrayWrapper.wrap(
-                    new byte[] {
-                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                        22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33
-                    });
+    public static final ByteArrayWrapper wrappedNodeKey = ByteArrayWrapper.wrap(nodeKey);
+    private static final ByteArrayWrapper wrappedAltNodeKey = ByteArrayWrapper.wrap(altNodeKey);
+    private static final ByteArrayWrapper wrappedZeroNodeKey = ByteArrayWrapper.wrap(zeroNodeKey);
 
     // values (taken from TrieTest#testGetReferencedTrieNodes_withStartFromAllNodes)
     private static final byte[] emptyValue = new byte[] {};
-    private static final byte[] leafValue =
+    public static final byte[] leafValue =
             new byte[] {
                 -8, 114, -97, 60, -96, -3, -97, 10, 112, 111, 28, -32, 44, 18, 101, -106, 51, 6,
                 -107, 0, 24, 13, 50, 81, -84, 68, 125, 110, 118, 97, -109, -96, -30, 107, -72, 80,
@@ -86,10 +69,10 @@ public class ResponseTrieStateTest {
 
     // referenced nodes
     private static final Map<ByteArrayWrapper, byte[]> emptyReferences = Map.of();
-    private static final Map<ByteArrayWrapper, byte[]> singleReference =
-            Map.of(altNodeKey, branchValue);
-    private static final Map<ByteArrayWrapper, byte[]> multipleReferences =
-            Map.of(altNodeKey, branchValue, zeroNodeKey, extensionValue);
+    public static final Map<ByteArrayWrapper, byte[]> singleReference =
+            Map.of(wrappedAltNodeKey, branchValue);
+    public static final Map<ByteArrayWrapper, byte[]> multipleReferences =
+            Map.of(wrappedAltNodeKey, branchValue, wrappedZeroNodeKey, extensionValue);
 
     // other
     private static final byte[] emptyByteArray = new byte[] {};
@@ -107,7 +90,8 @@ public class ResponseTrieStateTest {
     private Object correctParameters() {
         List<Object> parameters = new ArrayList<>();
 
-        ByteArrayWrapper[] keyOptions = new ByteArrayWrapper[] {nodeKey, altNodeKey, zeroNodeKey};
+        ByteArrayWrapper[] keyOptions =
+                new ByteArrayWrapper[] {wrappedNodeKey, wrappedAltNodeKey, wrappedZeroNodeKey};
         byte[][] valueOptions = new byte[][] {leafValue, branchValue, extensionValue};
         Object[] refOptions = new Object[] {emptyReferences, singleReference, multipleReferences};
         TrieDatabase[] dbOptions = new TrieDatabase[] {STATE, STORAGE, DETAILS};
@@ -139,7 +123,8 @@ public class ResponseTrieStateTest {
     private Object correct3Parameters() {
         List<Object> parameters = new ArrayList<>();
 
-        ByteArrayWrapper[] keyOptions = new ByteArrayWrapper[] {nodeKey, altNodeKey, zeroNodeKey};
+        ByteArrayWrapper[] keyOptions =
+                new ByteArrayWrapper[] {wrappedNodeKey, wrappedAltNodeKey, wrappedZeroNodeKey};
         byte[][] valueOptions = new byte[][] {leafValue, branchValue, extensionValue};
         TrieDatabase[] dbOptions = new TrieDatabase[] {STATE, STORAGE, DETAILS};
 
@@ -168,27 +153,27 @@ public class ResponseTrieStateTest {
 
     @Test(expected = NullPointerException.class)
     public void testConstructor_3Parameters_nullValue() {
-        new ResponseTrieState(nodeKey, null, STATE);
+        new ResponseTrieState(wrappedNodeKey, null, STATE);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConstructor_4Parameters_nullValue() {
-        new ResponseTrieState(nodeKey, null, multipleReferences, STATE);
+        new ResponseTrieState(wrappedNodeKey, null, multipleReferences, STATE);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConstructor_4Parameters_nullReferencedNodes() {
-        new ResponseTrieState(nodeKey, leafValue, null, STATE);
+        new ResponseTrieState(wrappedNodeKey, leafValue, null, STATE);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConstructor_3Parameters_nullType() {
-        new ResponseTrieState(nodeKey, leafValue, null);
+        new ResponseTrieState(wrappedNodeKey, leafValue, null);
     }
 
     @Test(expected = NullPointerException.class)
     public void testConstructor_4Parameters_nullType() {
-        new ResponseTrieState(nodeKey, leafValue, multipleReferences, null);
+        new ResponseTrieState(wrappedNodeKey, leafValue, multipleReferences, null);
     }
 
     @Test
@@ -215,7 +200,7 @@ public class ResponseTrieStateTest {
     public void testDecode_missingValue() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -225,7 +210,7 @@ public class ResponseTrieStateTest {
     public void testDecode_missingReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -235,7 +220,7 @@ public class ResponseTrieStateTest {
     public void testDecode_missingType() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -245,8 +230,8 @@ public class ResponseTrieStateTest {
     public void testDecode_additionalValue() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
@@ -258,7 +243,7 @@ public class ResponseTrieStateTest {
         byte[] encoding =
                 RLP.encodeList(
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -268,7 +253,7 @@ public class ResponseTrieStateTest {
     public void testDecode_smallerKeySize() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(smallNodeKey.getData()),
+                        RLP.encodeElement(smallNodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
@@ -279,7 +264,7 @@ public class ResponseTrieStateTest {
     public void testDecode_largerKeySize() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(largeNodeKey.getData()),
+                        RLP.encodeElement(largeNodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
@@ -290,7 +275,7 @@ public class ResponseTrieStateTest {
     public void testDecode_emptyValue() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(emptyValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
@@ -301,7 +286,7 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectElementReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeElement(branchValue),
                         RLP.encodeString(STATE.toString()));
@@ -312,10 +297,10 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectListReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(
-                                RLP.encodeElement(nodeKey.getData()),
+                                RLP.encodeElement(nodeKey),
                                 RLP.encodeElement(leafValue),
                                 RLP.encodeElement(branchValue)),
                         RLP.encodeString(STATE.toString()));
@@ -326,12 +311,11 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectPairReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(
                                 RLP.encodeList(
-                                        RLP.encodeElement(nodeKey.getData()),
-                                        RLP.encodeElement(leafValue)),
+                                        RLP.encodeElement(nodeKey), RLP.encodeElement(leafValue)),
                                 branchValue),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -341,14 +325,13 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectValueReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(
                                 RLP.encodeList(
-                                        RLP.encodeElement(nodeKey.getData()),
-                                        RLP.encodeElement(leafValue)),
+                                        RLP.encodeElement(nodeKey), RLP.encodeElement(leafValue)),
                                 RLP.encodeList(
-                                        RLP.encodeElement(altNodeKey.getData()),
+                                        RLP.encodeElement(wrappedAltNodeKey.getData()),
                                         RLP.encodeElement(emptyValue))),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -358,14 +341,13 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectKeyReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(
                                 RLP.encodeList(
-                                        RLP.encodeElement(nodeKey.getData()),
-                                        RLP.encodeElement(leafValue)),
+                                        RLP.encodeElement(nodeKey), RLP.encodeElement(leafValue)),
                                 RLP.encodeList(
-                                        RLP.encodeElement(smallNodeKey.getData()),
+                                        RLP.encodeElement(smallNodeKey),
                                         RLP.encodeElement(branchValue))),
                         RLP.encodeString(STATE.toString()));
         assertThat(ResponseTrieState.decode(encoding)).isNull();
@@ -375,7 +357,7 @@ public class ResponseTrieStateTest {
     public void testDecode_incorrectType() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString("random"));
@@ -508,13 +490,13 @@ public class ResponseTrieStateTest {
     public void testEncode_differentKey() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
 
         ResponseTrieState message =
-                new ResponseTrieState(altNodeKey, leafValue, multipleReferences, STATE);
+                new ResponseTrieState(wrappedAltNodeKey, leafValue, multipleReferences, STATE);
         assertThat(message.encode()).isNotEqualTo(encoding);
     }
 
@@ -522,13 +504,13 @@ public class ResponseTrieStateTest {
     public void testEncode_differentValue() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
 
         ResponseTrieState message =
-                new ResponseTrieState(nodeKey, branchValue, multipleReferences, STATE);
+                new ResponseTrieState(wrappedNodeKey, branchValue, multipleReferences, STATE);
         assertThat(message.encode()).isNotEqualTo(encoding);
     }
 
@@ -536,13 +518,13 @@ public class ResponseTrieStateTest {
     public void testEncode_differentReferences() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
 
         ResponseTrieState message =
-                new ResponseTrieState(nodeKey, leafValue, singleReference, STATE);
+                new ResponseTrieState(wrappedNodeKey, leafValue, singleReference, STATE);
         assertThat(message.encode()).isNotEqualTo(encoding);
     }
 
@@ -550,13 +532,13 @@ public class ResponseTrieStateTest {
     public void testEncode_differentType() {
         byte[] encoding =
                 RLP.encodeList(
-                        RLP.encodeElement(nodeKey.getData()),
+                        RLP.encodeElement(nodeKey),
                         RLP.encodeElement(leafValue),
                         RLP.encodeList(encodeReferencedNodes(multipleReferences)),
                         RLP.encodeString(STATE.toString()));
 
         ResponseTrieState message =
-                new ResponseTrieState(nodeKey, leafValue, multipleReferences, STORAGE);
+                new ResponseTrieState(wrappedNodeKey, leafValue, multipleReferences, STORAGE);
         assertThat(message.encode()).isNotEqualTo(encoding);
     }
 }

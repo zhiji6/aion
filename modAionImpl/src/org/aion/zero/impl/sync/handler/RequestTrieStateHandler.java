@@ -1,26 +1,3 @@
-/*
- * Copyright (c) 2017-2018 Aion foundation.
- *
- *     This file is part of the aion network project.
- *
- *     The aion network project is free software: you can redistribute it
- *     and/or modify it under the terms of the GNU General Public License
- *     as published by the Free Software Foundation, either version 3 of
- *     the License, or any later version.
- *
- *     The aion network project is distributed in the hope that it will
- *     be useful, but WITHOUT ANY WARRANTY; without even the implied
- *     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *     See the GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with the aion network project source files.
- *     If not, see <https://www.gnu.org/licenses/>.
- *
- * Contributors:
- *     Aion foundation.
- */
-
 package org.aion.zero.impl.sync.handler;
 
 import java.util.Map;
@@ -50,7 +27,7 @@ public final class RequestTrieStateHandler extends Handler {
     private final IP2pMgr p2p;
 
     // limits the number of key-value pairs returned to one request
-    private static final int MAXIMUM_BATCH_SIZE = 100;
+    public static final int MAXIMUM_BATCH_SIZE = 100;
 
     /**
      * Constructor.
@@ -99,6 +76,8 @@ public final class RequestTrieStateHandler extends Handler {
                     if (limit == 0) {
                         limit = MAXIMUM_BATCH_SIZE;
                     } else {
+                        // the first value counts towards the limit
+                        limit--;
                         limit = limit < MAXIMUM_BATCH_SIZE ? limit : MAXIMUM_BATCH_SIZE;
                     }
 

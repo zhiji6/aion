@@ -21,28 +21,28 @@ import org.junit.runner.RunWith;
  */
 @RunWith(JUnitParamsRunner.class)
 public class RequestTrieStateTest {
-    private static final byte[] nodeKey =
+    public static final byte[] nodeKey =
             new byte[] {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
                 24, 25, 26, 27, 28, 29, 30, 31, 32
             };
-    private static final byte[] altNodeKey =
+    public static final byte[] altNodeKey =
             new byte[] {
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29, 30, 31
             };
-    private static final byte[] zeroNodeKey = new byte[32];
-    private static final byte[] smallNodeKey =
+    public static final byte[] zeroNodeKey = new byte[32];
+    public static final byte[] smallNodeKey =
             new byte[] {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
                 24, 25, 26, 27, 28, 29, 30, 31
             };
-    private static final byte[] largeNodeKey =
+    public static final byte[] largeNodeKey =
             new byte[] {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
                 24, 25, 26, 27, 28, 29, 30, 31, 32, 33
             };
-    private static final byte[] emptyByteArray = new byte[] {};
+    public static final byte[] emptyByteArray = new byte[] {};
 
     /**
      * Parameters for testing:

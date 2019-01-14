@@ -1,5 +1,6 @@
 package org.aion.zero.impl.sync.msg;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -232,5 +233,27 @@ public final class ResponseTrieState extends Msg {
      */
     public Map<ByteArrayWrapper, byte[]> getReferencedNodes() {
         return referencedNodes;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ResponseTrieState that = (ResponseTrieState) o;
+        return Objects.equals(nodeKey, that.nodeKey)
+                && Arrays.equals(nodeValue, that.nodeValue)
+                && Objects.equals(referencedNodes, that.referencedNodes)
+                && dbType == that.dbType;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(nodeKey, referencedNodes, dbType);
+        result = 31 * result + Arrays.hashCode(nodeValue);
+        return result;
     }
 }
