@@ -176,7 +176,7 @@ public class AionHub {
         // initiate fast sync only if the database is empty
         boolean fastSync = true; // TODO: get value from CLI
         if (fastSync && startingBlock instanceof AionGenesis) {
-            fastSyncMgr = new FastSyncMgr(blockchain);
+            fastSyncMgr = new FastSyncMgr(blockchain, syncMgr);
         } else {
             // cannot fast sync if start is not genesis
             fastSyncMgr = new FastSyncMgr(); // constructor with disabled functionality

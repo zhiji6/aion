@@ -1,26 +1,3 @@
-/*
- * Copyright (c) 2017-2018 Aion foundation.
- *
- *     This file is part of the aion network project.
- *
- *     The aion network project is free software: you can redistribute it
- *     and/or modify it under the terms of the GNU General Public License
- *     as published by the Free Software Foundation, either version 3 of
- *     the License, or any later version.
- *
- *     The aion network project is distributed in the hope that it will
- *     be useful, but WITHOUT ANY WARRANTY; without even the implied
- *     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *     See the GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with the aion network project source files.
- *     If not, see <https://www.gnu.org/licenses/>.
- *
- * Contributors:
- *     Aion foundation.
- */
-
 package org.aion.zero.impl.sync;
 
 import java.util.Arrays;
@@ -33,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.aion.base.util.ByteArrayWrapper;
+import org.aion.p2p.P2pConstant;
 import org.aion.zero.impl.AionBlockchainImpl;
 import org.aion.zero.impl.types.AionBlock;
 
@@ -56,23 +34,26 @@ public final class FastSyncMgr {
 
     private final AtomicBoolean complete = new AtomicBoolean(false);
     private AionBlock pivot = null;
+    private long pivotNumber = -1;
     private final AionBlockchainImpl chain;
+    private final SyncMgr syncMgr;
 
     // used for pivot selection
     private final AtomicBoolean pivotNotInitialized = new AtomicBoolean(true);
     private final Map<AionBlock, Integer> pivotCandidates = new ConcurrentHashMap<>();
-    private static final int MINIMUM_REQUIRED_PIVOT_CANDIDATES = 32;
 
     // TODO: define the trie depth for each request to set the batch size
 
     public FastSyncMgr() {
         this.enabled = false;
         this.chain = null;
+        this.syncMgr = null;
     }
 
-    public FastSyncMgr(AionBlockchainImpl chain) {
+    public FastSyncMgr(AionBlockchainImpl chain, SyncMgr syncMgr) {
         this.enabled = true;
         this.chain = chain;
+        this.syncMgr = syncMgr;
     }
 
     public void addImportedNode(ByteArrayWrapper key, byte[] value) {
@@ -88,24 +69,51 @@ public final class FastSyncMgr {
     }
 
     private void initializePivot() {
+        // check if already initialized
         if (pivot != null) {
             pivotNotInitialized.set(false);
             return;
-        }
+        } else if (pivotNumber == -1) { // haven't chosen the height yet
+            // ensure minimum number of required peers before initializing the pivot
+            if (syncMgr.getActivePeers() < P2pConstant.REQUIRED_CONNECTIONS) {
+                return;
+            }
 
-        // ensure the min number of status blocks were received before initializing the pivot
-        if (pivotCandidates.size() < MINIMUM_REQUIRED_PIVOT_CANDIDATES) {
+            // ensure known network status before initializing the pivot
+            if (syncMgr.getNetworkBestBlockNumber() == 0) {
+                return;
+            }
+
+            // set number for pivot block
+            this.pivotNumber =
+                    syncMgr.getNetworkBestBlockNumber() - P2pConstant.PIVOT_DISTANCE_TO_HEAD;
+
+            // ensure that having a pivot makes sense
+            if (this.pivotNumber <= P2pConstant.PIVOT_DISTANCE_TO_HEAD) {
+                this.pivotNumber = -1;
+                this.pivotCandidates.clear();
+                return;
+            }
+
+            // request pivot blocks from network
+            for (PeerState ps : syncMgr.getPeerStates().values()) {
+                ps.setBaseForPivotRequest(pivotNumber);
+            }
             return;
+        } else { // already have the target block for pivot
+            // take the requested block received most times
+            Optional<Map.Entry<AionBlock, Integer>> pivotOption =
+                    pivotCandidates.entrySet().stream()
+                            // ensure the correct height
+                            .filter(e -> e.getKey().getNumber() == pivotNumber)
+                            // in case of multiple chains
+                            .max(Map.Entry.comparingByValue());
+
+            pivot = pivotOption.map(Entry::getKey).orElse(null);
         }
-
-        // TODO: ignore same status received from same peer
-        // take the status block received most times
-        Optional<Map.Entry<AionBlock, Integer>> pivotOption =
-                pivotCandidates.entrySet().parallelStream().max(Map.Entry.comparingByValue());
-
-        pivot = pivotOption.map(Entry::getKey).orElse(null);
     }
 
+    // TODO: more to the blockchain class
     public void addPivotCandidate(AionBlock block) {
         if (enabled && pivotNotInitialized.get()) {
             // save status block + increment number of times it was received

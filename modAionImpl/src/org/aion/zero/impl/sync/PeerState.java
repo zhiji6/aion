@@ -51,6 +51,8 @@ public class PeerState {
 
         /** Block bodies request, waiting for response. */
         BODIES_REQUESTED,
+
+        REQUEST_PIVOT_BLOCK
     }
 
     // The syncing mode and the base block number
@@ -142,6 +144,13 @@ public class PeerState {
 
     public void resetLastHeaderRequest() {
         this.state = State.INITIAL;
+        this.lastHeaderRequest = 0;
+    }
+
+    public void setBaseForPivotRequest(long base) {
+        this.base = base;
+        this.mode = Mode.THUNDER;
+        this.state = State.REQUEST_PIVOT_BLOCK;
         this.lastHeaderRequest = 0;
     }
 

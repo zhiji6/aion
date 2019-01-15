@@ -49,8 +49,6 @@ public class BlockPropagationHandler {
 
     private static final byte[] genesis = CfgAion.inst().getGenesis().getHash();
 
-    private final FastSyncMgr fastSyncMgr;
-
     public BlockPropagationHandler(
             final int cacheSize,
             final IAionBlockchain blockchain,
@@ -86,7 +84,6 @@ public class BlockPropagationHandler {
 
         this.blockHeaderValidator = headerValidator;
 
-        this.fastSyncMgr = fastSyncMgr;
         this.isSyncOnlyNode = isSyncOnlyNode;
     }
 
@@ -161,7 +158,6 @@ public class BlockPropagationHandler {
                         result);
             }
             boolean stored = blockchain.storePendingStatusBlock(block);
-            fastSyncMgr.addPivotCandidate(block);
 
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -207,10 +203,7 @@ public class BlockPropagationHandler {
                     new ResStatus(
                             bestBlock.getNumber(), td.toByteArray(), bestBlock.getHash(), genesis);
 
-            this.p2pManager
-                    .getActiveNodes()
-                    .values()
-                    .stream()
+            this.p2pManager.getActiveNodes().values().stream()
                     .filter(n -> n.getIdHash() != nodeId)
                     .filter(n -> n.getTotalDifficulty().compareTo(td) >= 0)
                     .forEach(
@@ -242,10 +235,7 @@ public class BlockPropagationHandler {
 
         // current proposal is to send to all peers with lower blockNumbers
         AtomicBoolean sent = new AtomicBoolean();
-        this.p2pManager
-                .getActiveNodes()
-                .values()
-                .stream()
+        this.p2pManager.getActiveNodes().values().stream()
                 .filter(n -> n.getIdHash() != nodeId)
                 // peer is within 5 blocks of the block we're about to send
                 .filter(
