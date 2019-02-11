@@ -643,6 +643,18 @@ public class AionBlockchainImpl implements IAionBlockchain {
     }
 
     /**
+     * Traverse the trie for the given database starting from the given node. Return the keys for
+     * all the missing branches that are encountered during the traversal.
+     *
+     * @param key the starting node for the trie traversal
+     * @return a set of keys that were referenced as part of the trie but could not be found in the
+     *     database
+     */
+    public Set<ByteArrayWrapper> traverseTrieFromNode(byte[] key, DatabaseType dbType) {
+        return repository.traverseTrieFromNode(key, dbType);
+    }
+
+    /**
      * If using TOP pruning we need to check the pruning restriction for the block. Otherwise, there
      * is not prune restriction.
      */

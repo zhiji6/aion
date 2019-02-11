@@ -61,6 +61,7 @@ public final class FastSyncManager {
     Map<ByteArrayWrapper, BlocksWrapper> receivedBlocks = new HashMap<>();
 
     private final Map<ByteArrayWrapper, byte[]> importedTrieNodes = new ConcurrentHashMap<>();
+    private final BlockingQueue<ByteArrayWrapper> requiredWorldState = new LinkedBlockingQueue<>();
 
     public FastSyncManager(
             AionBlockchainImpl chain,
@@ -89,6 +90,7 @@ public final class FastSyncManager {
 
     public void addImportedNode(ByteArrayWrapper key, byte[] value, DatabaseType dbType) {
         if (enabled) {
+            // TODO: differentiate based on database
             importedTrieNodes.put(key, value);
         }
     }
@@ -193,9 +195,27 @@ public final class FastSyncManager {
         return false;
     }
 
-    private boolean isCompleteWorldState() {
-        // TODO: implement
-        return false;
+    @VisibleForTesting
+    boolean isCompleteWorldState() {
+        if (pivot == null) {
+            return false;
+        } else {
+            // get root of pivot
+            byte[] root = pivot.getStateRoot();
+
+            // traverse trie from root to find missing nodes
+            Set<ByteArrayWrapper> missing = chain.traverseTrieFromNode(root, DatabaseType.STATE);
+
+            // clearing the queue to ensure we're not still requesting already received nodes
+            requiredWorldState.clear();
+
+            if (missing.isEmpty()) {
+                return true;
+            } else {
+                requiredWorldState.addAll(missing);
+                return false;
+            }
+        }
     }
 
     private boolean isCompleteContractDetails() {
