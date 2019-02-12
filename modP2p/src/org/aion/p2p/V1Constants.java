@@ -18,4 +18,7 @@ public class V1Constants {
 
     /** The number of components contained in a trie data response. */
     public static int TRIE_DATA_RESPONSE_COMPONENTS = 4;
+
+    /** Limits the number of missing keys found by the completeness check of contract data. */
+    public static int CONTRACT_MISSING_KEYS_LIMIT = 100;
 }

@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1916,5 +1917,26 @@ public class AionBlockchainImpl implements IAionBlockchain {
             throw new NullPointerException();
         }
         return this.getBlockStore().getTotalDifficultyForHash(hash.toBytes());
+    }
+
+    /**
+     * Get all the contracts stored locally.
+     *
+     * @return an {@link Iterator} containing all the known contract addresses deployed on the
+     *     blockchain
+     */
+    public Iterator<Address> getContracts() {
+        // TODO: implement
+        return null;
+    }
+
+    /**
+     * Returns the block number at which the given contract was created.
+     *
+     * @return the block number at which the given contract was created
+     */
+    public long getInceptionBlockNumber(Address contract) {
+        // TODO: implement
+        return 0L;
     }
 }
