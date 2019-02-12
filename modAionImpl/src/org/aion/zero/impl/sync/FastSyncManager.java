@@ -4,6 +4,7 @@ import static org.aion.p2p.V1Constants.CONTRACT_MISSING_KEYS_LIMIT;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +47,53 @@ public final class FastSyncManager {
     public FastSyncManager(AionBlockchainImpl chain) {
         this.enabled = true;
         this.chain = chain;
+    }
+
+    /** This builder allows creating customized {@link FastSyncManager} objects for unit tests. */
+    @VisibleForTesting
+    static class Builder {
+        private AionBlockchainImpl chain = null;
+        private Collection<ByteArrayWrapper> storage = null;
+        private long pivotNumber = -1;
+
+        public Builder() {}
+
+        public FastSyncManager.Builder withBlockchain(AionBlockchainImpl chain) {
+            this.chain = chain;
+            return this;
+        }
+
+        public FastSyncManager.Builder withRequiredStorage(Collection<ByteArrayWrapper> storage) {
+            this.storage = storage;
+            return this;
+        }
+
+        public FastSyncManager.Builder withPivotNumber(long pivotNumber) {
+            this.pivotNumber = pivotNumber;
+            return this;
+        }
+
+        public FastSyncManager build() {
+            FastSyncManager manager;
+
+            if (chain != null) {
+                manager = new FastSyncManager(this.chain);
+            } else {
+                manager = new FastSyncManager();
+            }
+
+            // adding required storage
+            if (storage != null) {
+                manager.requiredStorage.addAll(storage);
+            }
+
+            // adding pivot number
+            if (pivotNumber >= 0) {
+                manager.pivotNumber = pivotNumber;
+            }
+
+            return manager;
+        }
     }
 
     public void addImportedNode(ByteArrayWrapper key, byte[] value, DatabaseType dbType) {
@@ -117,13 +165,8 @@ public final class FastSyncManager {
             return;
         }
 
-        // ensure complete contract details data was received
-        if (!isCompleteContractDetails()) {
-            return;
-        }
-
-        // ensure complete storage data was received
-        if (!isCompleteStorage()) {
+        // ensure complete contract details and storage data was received
+        if (!isCompleteContractData()) {
             return;
         }
 
@@ -171,11 +214,6 @@ public final class FastSyncManager {
         }
     }
 
-    private boolean isCompleteContractDetails() {
-        // TODO: implement
-        return false;
-    }
-
     /**
      * Check if the receipts have been processed and the world state download is complete.
      *
@@ -192,7 +230,7 @@ public final class FastSyncManager {
     }
 
     @VisibleForTesting
-    boolean isCompleteStorage() {
+    boolean isCompleteContractData() {
         if (!requiredStorage.isEmpty() || !satisfiesContractRequirements()) {
             // checking all contracts is expensive; to efficiently manage memory we do this check
             // only if all the already known missing values have been requested
@@ -226,6 +264,8 @@ public final class FastSyncManager {
                             chain.traverseTrieFromNode(root, DatabaseType.STORAGE);
 
                     requiredStorage.addAll(missing);
+
+                    // TODO: handle details database update
 
                     if (requiredStorage.size() >= CONTRACT_MISSING_KEYS_LIMIT) {
                         // to efficiently manage memory: stop checking when reaching the limit
