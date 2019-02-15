@@ -66,6 +66,7 @@ import org.aion.zero.impl.core.energy.AbstractEnergyStrategyLimit;
 import org.aion.zero.impl.core.energy.EnergyStrategies;
 import org.aion.zero.impl.db.AionBlockStore;
 import org.aion.zero.impl.db.AionRepositoryImpl;
+import org.aion.zero.impl.db.ContractInformation;
 import org.aion.zero.impl.sync.DatabaseType;
 import org.aion.zero.impl.sync.SyncMgr;
 import org.aion.zero.impl.types.AionBlock;
@@ -1935,8 +1936,8 @@ public class AionBlockchainImpl implements IAionBlockchain {
      *
      * @return the block number at which the given contract was created
      */
-    public long getInceptionBlockNumber(Address contract) {
+    public ContractInformation getIndexedContractInformation(Address contract) {
         // TODO: implement
-        return 0L;
+        return null;
     }
 }

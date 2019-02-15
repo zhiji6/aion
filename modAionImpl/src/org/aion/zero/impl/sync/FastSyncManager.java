@@ -17,6 +17,7 @@ import org.aion.base.util.ByteArrayWrapper;
 import org.aion.mcf.core.AccountState;
 import org.aion.vm.api.interfaces.Address;
 import org.aion.zero.impl.AionBlockchainImpl;
+import org.aion.zero.impl.db.ContractInformation;
 import org.aion.zero.impl.types.AionBlock;
 
 /**
@@ -242,34 +243,45 @@ public final class FastSyncManager {
             // check that each contract has all the required data
             while (iterator.hasNext()) {
                 Address contract = iterator.next();
-                AccountState contractState = chain.getRepository().getAccountState(contract);
+                ContractInformation info = chain.getIndexedContractInformation(contract);
+                if (info == null) {
+                    // the contracts are returned by the iterator only when they have info
+                    // missing infor implies some internal storage error
+                    // TODO: disable fast sync in method that catches this exception
+                    throw new IllegalStateException(
+                            "Fast sync encountered a error for which there is no defined recovery path. Disabling fast sync.");
+                }
 
-                if (contractState == null) {
-                    // determine if the contract was created after the pivot block
-                    // this can happen if the pivot was updated due to other issues
-                    if (chain.getInceptionBlockNumber(contract) > pivotNumber) {
-                        continue;
-                    } else {
+                // look only at contracts created pre-pivot and that have not already been completed
+                // (additional contracts may be know if a pivot gets updated due to errors)
+                if (info.getInceptionBlock() > pivotNumber && !info.isComplete()) {
+                    AccountState contractState = chain.getRepository().getAccountState(contract);
+
+                    if (contractState == null) {
                         // somehow the world state was incorrectly labeled as complete
                         // this should not happen so switching off sync
                         // TODO: disable fast sync in method that catches this exception
                         throw new IllegalStateException(
                                 "Fast sync encountered a error for which there is no defined recovery path. Disabling fast sync.");
-                    }
-                } else {
-                    byte[] root = contractState.getStateRoot();
+                    } else {
+                        byte[] root = contractState.getStateRoot();
 
-                    // traverse trie from root to find missing nodes
-                    Set<ByteArrayWrapper> missing =
-                            chain.traverseTrieFromNode(root, DatabaseType.STORAGE);
+                        // traverse trie from root to find missing nodes
+                        Set<ByteArrayWrapper> missing =
+                                chain.traverseTrieFromNode(root, DatabaseType.STORAGE);
 
-                    requiredStorage.addAll(missing);
+                        requiredStorage.addAll(missing);
 
-                    // TODO: handle details database update
+                        // TODO: handle details database update
+                        if (missing.isEmpty()) {
+                            // the storage got completed
+                            // TODO: update the contract details and set info to complete
+                        }
 
-                    if (requiredStorage.size() >= CONTRACT_MISSING_KEYS_LIMIT) {
-                        // to efficiently manage memory: stop checking when reaching the limit
-                        return false;
+                        if (requiredStorage.size() >= CONTRACT_MISSING_KEYS_LIMIT) {
+                            // to efficiently manage memory: stop checking when reaching the limit
+                            return false;
+                        }
                     }
                 }
             }
