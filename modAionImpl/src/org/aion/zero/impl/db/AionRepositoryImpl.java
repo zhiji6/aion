@@ -25,6 +25,7 @@ import org.aion.mcf.core.AccountState;
 import org.aion.mcf.db.AbstractRepository;
 import org.aion.mcf.db.ContractDetailsCacheImpl;
 import org.aion.mcf.db.TransactionStore;
+import org.aion.mcf.ds.ObjectDataSource;
 import org.aion.mcf.trie.SecureTrie;
 import org.aion.mcf.trie.Trie;
 import org.aion.mcf.trie.TrieImpl;
@@ -48,6 +49,9 @@ public class AionRepositoryImpl
 
     // pending block store
     private PendingBlockStore pendingStore;
+
+    // inferred contract information not used for consensus
+    private ObjectDataSource<ContractInformation> contractInfoSource;
 
     /**
      * used by getSnapShotTo
@@ -96,6 +100,9 @@ public class AionRepositoryImpl
             this.blockStore = new AionBlockStore(indexDatabase, blockDatabase, checkIntegrity);
 
             this.pendingStore = new PendingBlockStore(pendingStoreProperties);
+            this.contractInfoSource =
+                    new ObjectDataSource<>(
+                            contractIndexDatabase, ContractInformation.RLP_SERIALIZER);
 
             // Setup world trie.
             worldState = createStateTrie();
@@ -940,6 +947,7 @@ public class AionRepositoryImpl
      *     blockchain
      */
     public Iterator<byte[]> getContracts() {
+        // TODO: consider adding getKeys functionality to ObjectDataSource
         return contractIndexDatabase.keys();
     }
 
@@ -949,11 +957,6 @@ public class AionRepositoryImpl
      * @return the block number at which the given contract was created
      */
     public ContractInformation getIndexedContractInformation(Address contract) {
-        Optional<byte[]> stored = contractIndexDatabase.get(contract.toBytes());
-        if (stored.isPresent()) {
-            return ContractInformation.decode(stored.get());
-        } else {
-            return null;
-        }
+        return contractInfoSource.get(contract.toBytes());
     }
 }
