@@ -13,6 +13,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.aion.base.type.AionAddress;
 import org.aion.base.util.ByteArrayWrapper;
 import org.aion.mcf.core.AccountState;
 import org.aion.vm.api.interfaces.Address;
@@ -238,11 +239,11 @@ public final class FastSyncManager {
             // and the state and receipts parts are complete
             return false;
         } else {
-            Iterator<Address> iterator = chain.getContracts();
+            Iterator<byte[]> iterator = chain.getContracts();
 
             // check that each contract has all the required data
             while (iterator.hasNext()) {
-                Address contract = iterator.next();
+                Address contract = AionAddress.wrap(iterator.next());
                 ContractInformation info = chain.getIndexedContractInformation(contract);
                 if (info == null) {
                     // the contracts are returned by the iterator only when they have info

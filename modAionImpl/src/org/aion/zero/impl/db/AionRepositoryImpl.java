@@ -932,4 +932,28 @@ public class AionRepositoryImpl
                         "The database type " + dbType.toString() + " is not supported.");
         }
     }
+
+    /**
+     * Get all the contracts stored locally.
+     *
+     * @return an {@link Iterator} containing all the known contract addresses deployed on the
+     *     blockchain
+     */
+    public Iterator<byte[]> getContracts() {
+        return contractIndexDatabase.keys();
+    }
+
+    /**
+     * Returns the block number at which the given contract was created.
+     *
+     * @return the block number at which the given contract was created
+     */
+    public ContractInformation getIndexedContractInformation(Address contract) {
+        Optional<byte[]> stored = contractIndexDatabase.get(contract.toBytes());
+        if (stored.isPresent()) {
+            return ContractInformation.decode(stored.get());
+        } else {
+            return null;
+        }
+    }
 }
