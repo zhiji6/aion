@@ -1,6 +1,7 @@
 package org.aion.zero.impl.sync;
 
 import static org.aion.p2p.V1Constants.CONTRACT_MISSING_KEYS_LIMIT;
+import static org.aion.p2p.V1Constants.TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Arrays;
@@ -8,17 +9,19 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.aion.base.type.AionAddress;
 import org.aion.base.util.ByteArrayWrapper;
 import org.aion.mcf.core.AccountState;
+import org.aion.p2p.INode;
 import org.aion.vm.api.interfaces.Address;
 import org.aion.zero.impl.AionBlockchainImpl;
 import org.aion.zero.impl.db.ContractInformation;
+import org.aion.zero.impl.sync.msg.RequestTrieData;
 import org.aion.zero.impl.types.AionBlock;
 
 /**
@@ -31,10 +34,15 @@ public final class FastSyncManager {
     private boolean enabled;
     private final AtomicBoolean complete = new AtomicBoolean(false);
 
-    private final Map<ByteArrayWrapper, byte[]> importedTrieNodes = new ConcurrentHashMap<>();
+    private final int QUEUE_LIMIT = 2 * CONTRACT_MISSING_KEYS_LIMIT;
 
-    private final BlockingQueue<ByteArrayWrapper> requiredWorldState = new LinkedBlockingQueue<>();
-    private final BlockingQueue<ByteArrayWrapper> requiredStorage = new LinkedBlockingQueue<>();
+    // states that are required but not yet requested
+    private final Queue<ByteArrayWrapper> missingState = new ArrayBlockingQueue<>(QUEUE_LIMIT);
+    private final Queue<ByteArrayWrapper> missingStorage = new ArrayBlockingQueue<>(QUEUE_LIMIT);
+
+    // known key-value pairs
+    private final Map<ByteArrayWrapper, byte[]> importedState = new ConcurrentHashMap<>();
+    private final Map<ByteArrayWrapper, byte[]> importedStorage = new ConcurrentHashMap<>();
 
     private AionBlock pivot = null;
     private long pivotNumber = -1;
@@ -50,7 +58,6 @@ public final class FastSyncManager {
         this.enabled = true;
         this.chain = chain;
     }
-
     /** This builder allows creating customized {@link FastSyncManager} objects for unit tests. */
     @VisibleForTesting
     static class Builder {
@@ -86,7 +93,7 @@ public final class FastSyncManager {
 
             // adding required storage
             if (storage != null) {
-                manager.requiredStorage.addAll(storage);
+                manager.missingStorage.addAll(storage);
             }
 
             // adding pivot number
@@ -100,15 +107,60 @@ public final class FastSyncManager {
 
     public void addImportedNode(ByteArrayWrapper key, byte[] value, DatabaseType dbType) {
         if (enabled) {
-            // TODO: differentiate based on database
-            importedTrieNodes.put(key, value);
+            switch (dbType) {
+                case STATE:
+                    importedState.put(key, value);
+                    break;
+                case STORAGE:
+                    importedStorage.put(key, value);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
-    public boolean containsExact(ByteArrayWrapper key, byte[] value) {
-        return enabled
-                && importedTrieNodes.containsKey(key)
-                && Arrays.equals(importedTrieNodes.get(key), value);
+    public boolean containsExact(ByteArrayWrapper key, byte[] value, DatabaseType dbType) {
+        if (enabled) {
+            switch (dbType) {
+                case STATE:
+                    return importedState.containsKey(key)
+                            && Arrays.equals(importedState.get(key), value);
+                case STORAGE:
+                    return importedStorage.containsKey(key)
+                            && Arrays.equals(importedStorage.get(key), value);
+                default:
+                    return false;
+            }
+
+        } else {
+            return false;
+        }
+    }
+
+    // TODO: make provisions for concurrent access
+    public RequestTrieData createNextRequest() {
+        // check if any required state entries
+        ByteArrayWrapper key = missingState.poll();
+
+        if (key != null) {
+            return new RequestTrieData(
+                    key.getData(), DatabaseType.STATE, TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE);
+        }
+
+        // check for required storage
+        key = missingStorage.poll();
+
+        if (key != null) {
+            return new RequestTrieData(
+                    key.getData(), DatabaseType.STORAGE, TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE);
+        }
+
+        // TODO: expand state requirements
+
+        // TODO: expand storage requirements
+
+        return null;
     }
 
     @VisibleForTesting
@@ -117,6 +169,11 @@ public final class FastSyncManager {
 
         this.pivot = pivot;
         this.pivotNumber = pivot.getNumber();
+    }
+
+    public boolean isAbovePivot(INode n) {
+        // TODO: review
+        return enabled && n.getBestBlockNumber() > pivotNumber;
     }
 
     /** Changes the pivot in case of import failure. */
@@ -205,12 +262,12 @@ public final class FastSyncManager {
             Set<ByteArrayWrapper> missing = chain.traverseTrieFromNode(root, DatabaseType.STATE);
 
             // clearing the queue to ensure we're not still requesting already received nodes
-            requiredWorldState.clear();
+            missingState.clear();
 
             if (missing.isEmpty()) {
                 return true;
             } else {
-                requiredWorldState.addAll(missing);
+                missingState.addAll(missing);
                 return false;
             }
         }
@@ -233,7 +290,7 @@ public final class FastSyncManager {
 
     @VisibleForTesting
     boolean isCompleteContractData() {
-        if (!requiredStorage.isEmpty() || !satisfiesContractRequirements()) {
+        if (!missingStorage.isEmpty() || !satisfiesContractRequirements()) {
             // checking all contracts is expensive; to efficiently manage memory we do this check
             // only if all the already known missing values have been requested
             // and the state and receipts parts are complete
@@ -271,7 +328,7 @@ public final class FastSyncManager {
                         Set<ByteArrayWrapper> missing =
                                 chain.traverseTrieFromNode(root, DatabaseType.STORAGE);
 
-                        requiredStorage.addAll(missing);
+                        missingStorage.addAll(missing);
 
                         // TODO: handle details database update
                         if (missing.isEmpty()) {
@@ -279,7 +336,7 @@ public final class FastSyncManager {
                             // TODO: update the contract details and set info to complete
                         }
 
-                        if (requiredStorage.size() >= CONTRACT_MISSING_KEYS_LIMIT) {
+                        if (missingStorage.size() >= CONTRACT_MISSING_KEYS_LIMIT) {
                             // to efficiently manage memory: stop checking when reaching the limit
                             return false;
                         }
@@ -287,7 +344,7 @@ public final class FastSyncManager {
                 }
             }
 
-            return requiredStorage.isEmpty();
+            return missingStorage.isEmpty();
         }
     }
 

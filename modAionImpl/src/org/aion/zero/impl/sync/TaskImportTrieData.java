@@ -126,16 +126,19 @@ final class TaskImportTrieData implements Runnable {
      * @return the remaining nodes after the exact matches have been filtered out
      */
     private Map<ByteArrayWrapper, byte[]> filterImported(TrieNodeWrapper wrapper) {
+        DatabaseType dbType = wrapper.getDbType();
+
         Map<ByteArrayWrapper, byte[]> nodes =
                 wrapper.getReferencedNodes()
                         .entrySet()
                         .stream()
-                        .filter(e -> !fastSyncMgr.containsExact(e.getKey(), e.getValue()))
+                        .filter(e -> !fastSyncMgr.containsExact(e.getKey(), e.getValue(), dbType))
                         .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 
-        if (!fastSyncMgr.containsExact(wrapper.getNodeKey(), wrapper.getNodeValue())) {
+        if (!fastSyncMgr.containsExact(wrapper.getNodeKey(), wrapper.getNodeValue(), dbType)) {
             nodes.put(wrapper.getNodeKey(), wrapper.getNodeValue());
         }
+
         return nodes;
     }
 }

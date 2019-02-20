@@ -89,7 +89,7 @@ public class TaskImportTrieDataTest {
 
         FastSyncManager fastSyncMgr = mock(FastSyncManager.class);
         when(fastSyncMgr.isComplete()).thenReturn(false, true);
-        when(fastSyncMgr.containsExact(any(), any())).thenReturn(true);
+        when(fastSyncMgr.containsExact(any(), any(), any())).thenReturn(true);
 
         BlockingQueue<TrieNodeWrapper> trieNodes = mock(LinkedBlockingQueue.class);
         byte[] encoding =
@@ -125,7 +125,7 @@ public class TaskImportTrieDataTest {
 
         FastSyncManager fastSyncMgr = mock(FastSyncManager.class);
         when(fastSyncMgr.isComplete()).thenReturn(false, true);
-        when(fastSyncMgr.containsExact(any(), any())).thenReturn(false);
+        when(fastSyncMgr.containsExact(any(), any(), any())).thenReturn(false);
 
         BlockingQueue<TrieNodeWrapper> trieNodes = mock(LinkedBlockingQueue.class);
         byte[] encoding =
@@ -169,7 +169,7 @@ public class TaskImportTrieDataTest {
 
         FastSyncManager fastSyncMgr = mock(FastSyncManager.class);
         when(fastSyncMgr.isComplete()).thenReturn(false, true);
-        when(fastSyncMgr.containsExact(any(), any())).thenReturn(false);
+        when(fastSyncMgr.containsExact(any(), any(), any())).thenReturn(false);
 
         BlockingQueue<TrieNodeWrapper> trieNodes = mock(LinkedBlockingQueue.class);
         byte[] encoding =
