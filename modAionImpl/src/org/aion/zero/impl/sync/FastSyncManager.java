@@ -6,6 +6,7 @@ import static org.aion.p2p.V1Constants.TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -31,7 +32,9 @@ import org.aion.zero.impl.types.AionBlock;
  */
 public final class FastSyncManager {
 
+    // TODO: ensure correct behavior when disabled
     private boolean enabled;
+    // TODO: ensure correct behavior when complete
     private final AtomicBoolean complete = new AtomicBoolean(false);
 
     private final int QUEUE_LIMIT = 2 * CONTRACT_MISSING_KEYS_LIMIT;
@@ -140,6 +143,10 @@ public final class FastSyncManager {
 
     // TODO: make provisions for concurrent access
     public RequestTrieData createNextRequest() {
+        if (isComplete()) {
+            return null;
+        }
+
         // check if any required state entries
         ByteArrayWrapper key = missingState.poll();
 
@@ -156,9 +163,28 @@ public final class FastSyncManager {
                     key.getData(), DatabaseType.STORAGE, TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE);
         }
 
-        // TODO: expand state requirements
+        // check/expand world state requirements
+        if (!isCompleteWorldState()) {
+            key = missingState.poll();
 
-        // TODO: expand storage requirements
+            if (key != null) {
+                return new RequestTrieData(
+                        key.getData(), DatabaseType.STATE, TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE);
+            }
+        }
+
+        // check/expand storage requirements
+        if (!isCompleteContractData()) {
+            key = missingStorage.poll();
+
+            if (key != null) {
+                return new RequestTrieData(
+                        key.getData(), DatabaseType.STORAGE, TRIE_DATA_REQUEST_MAXIMUM_BATCH_SIZE);
+            }
+        }
+
+        // seems like no data is missing -> check full completeness
+        checkCompleteness();
 
         return null;
     }
@@ -201,7 +227,7 @@ public final class FastSyncManager {
      *
      * @implNote Expensive functionality which should not be called frequently.
      */
-    private void ensureCompleteness() {
+    private void checkCompleteness() {
         // already complete, do nothing
         if (isComplete()) {
             return;
@@ -348,16 +374,27 @@ public final class FastSyncManager {
         }
     }
 
-    public void updateRequests(
-            ByteArrayWrapper topmostKey,
-            Set<ByteArrayWrapper> referencedKeys,
-            DatabaseType dbType) {
+    public void updateRequests(Collection<byte[]> referencedValues, DatabaseType dbType) {
         if (enabled) {
-            // TODO: check what's still missing and send out requests
-            // TODO: send state request to multiple peers
 
-            // TODO: check for completeness when no requests remain
-            ensureCompleteness();
+            Set<ByteArrayWrapper> missing = new HashSet<>();
+            for (byte[] value : referencedValues) {
+                // TODO: ensure start can be from value
+                missing.addAll(chain.traverseTrieFromNode(value, DatabaseType.STORAGE));
+            }
+
+            switch (dbType) {
+                case STATE:
+                    missing.removeAll(importedState.keySet());
+                    missingState.addAll(missing);
+                    break;
+                case STORAGE:
+                    missing.removeAll(importedStorage.keySet());
+                    missingStorage.addAll(missing);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 }

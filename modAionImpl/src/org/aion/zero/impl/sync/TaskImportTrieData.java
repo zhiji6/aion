@@ -108,8 +108,7 @@ final class TaskImportTrieData implements Runnable {
 
             if (!failed) {
                 // reexamine missing states and make further requests
-                fastSyncMgr.updateRequests(
-                        tnw.getNodeKey(), tnw.getReferencedNodes().keySet(), tnw.getDbType());
+                fastSyncMgr.updateRequests(tnw.getReferencedNodes().values(), tnw.getDbType());
             }
         }
 

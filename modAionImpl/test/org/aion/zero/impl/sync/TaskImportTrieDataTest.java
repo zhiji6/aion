@@ -110,7 +110,7 @@ public class TaskImportTrieDataTest {
         verifyZeroInteractions(chain);
         verify(fastSyncMgr, times(2)).isComplete();
         verify(fastSyncMgr, times(0)).addImportedNode(wrappedNodeKey, leafValue, STATE);
-        verify(fastSyncMgr, times(0)).updateRequests(wrappedNodeKey, Collections.emptySet(), STATE);
+        verify(fastSyncMgr, times(0)).updateRequests(Collections.emptySet(), STATE);
     }
 
     @Test
@@ -154,7 +154,7 @@ public class TaskImportTrieDataTest {
         verify(chain, times(1)).importTrieNode(nodeKey, leafValue, STATE);
         verify(fastSyncMgr, times(2)).isComplete();
         verify(fastSyncMgr, times(1)).addImportedNode(wrappedNodeKey, leafValue, STATE);
-        verify(fastSyncMgr, times(1)).updateRequests(wrappedNodeKey, Collections.emptySet(), STATE);
+        verify(fastSyncMgr, times(1)).updateRequests(Collections.emptySet(), STATE);
     }
 
     @Test
