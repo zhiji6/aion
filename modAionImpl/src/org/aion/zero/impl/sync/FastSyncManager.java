@@ -376,10 +376,8 @@ public final class FastSyncManager {
 
     public void updateRequests(Collection<byte[]> referencedValues, DatabaseType dbType) {
         if (enabled) {
-
             Set<ByteArrayWrapper> missing = new HashSet<>();
             for (byte[] value : referencedValues) {
-                // TODO: ensure start can be from value
                 missing.addAll(chain.traverseTrieFromNode(value, DatabaseType.STORAGE));
             }
 
