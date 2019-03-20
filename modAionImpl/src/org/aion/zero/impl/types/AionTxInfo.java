@@ -1,6 +1,8 @@
 package org.aion.zero.impl.types;
 
 import java.math.BigInteger;
+import java.util.Objects;
+
 import org.aion.mcf.core.AbstractTxInfo;
 import org.aion.rlp.RLP;
 import org.aion.rlp.RLPItem;
@@ -9,6 +11,7 @@ import org.aion.zero.types.AionTransaction;
 import org.aion.zero.types.AionTxReceipt;
 
 public class AionTxInfo extends AbstractTxInfo<AionTxReceipt, AionTransaction> {
+
     public AionTxInfo(AionTxReceipt receipt, byte[] blockHash, int index) {
         this.receipt = receipt;
         this.blockHash = blockHash;
@@ -28,7 +31,11 @@ public class AionTxInfo extends AbstractTxInfo<AionTxReceipt, AionTransaction> {
         RLPItem indexRLP = (RLPItem) txInfo.get(2);
 
         receipt = new AionTxReceipt(receiptRLP.getRLPData());
-        blockHash = blockHashRLP.getRLPData();
+        if (blockHashRLP.getRLPData().length == 0) {
+            blockHash = null;
+        } else {
+            blockHash = blockHashRLP.getRLPData();
+        }
         if (indexRLP.getRLPData() == null) {
             index = 0;
         } else {
@@ -75,5 +82,33 @@ public class AionTxInfo extends AbstractTxInfo<AionTxReceipt, AionTransaction> {
 
     public boolean isPending() {
         return blockHash == null;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof AionTxInfo)) {
+            return false;
+        }
+        return super.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(super.hashCode());
+    }
+
+    @Override
+    public String toString() {
+        return "AionTxInfo{"
+                + ", blockHash="
+                + blockHash
+                + ", index="
+                + index
+                + "receipt="
+                + receipt
+                + '}';
     }
 }
