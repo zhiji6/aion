@@ -55,10 +55,12 @@ public class FvmBalanceTransferConsensusTest {
                         .withAvmEnabled()
                         .build();
         this.blockchain = bundle.bc;
+        VirtualMachineProvider.initializeAllVirtualMachines();
     }
 
     @After
     public void tearDown() {
+        VirtualMachineProvider.shutdownAllVirtualMachines();
         this.blockchain = null;
     }
 
