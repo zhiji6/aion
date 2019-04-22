@@ -8,3 +8,6 @@ modAionImpl/test_resources/mainnetStateAt1088453.txt filter=lfs diff=lfs merge=l
 modAionImpl/test_resources/mainnetStateAt3293751.txt filter=lfs diff=lfs merge=lfs -text
 modAionImpl/test_resources/mainnetStateAt3293723.txt filter=lfs diff=lfs merge=lfs -text
 modAionImpl/test_resources/mainnetStateAt3277219.txt filter=lfs diff=lfs merge=lfs -text
+modAionImpl/test_resources/masteryStateAt1207579.txt filter=lfs diff=lfs merge=lfs -text
+modAionImpl/test_resources/masteryStorageAt1207579Acc481c.txt filter=lfs diff=lfs merge=lfs -text
+
