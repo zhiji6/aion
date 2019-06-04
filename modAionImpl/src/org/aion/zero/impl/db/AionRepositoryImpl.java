@@ -1070,6 +1070,20 @@ public class AionRepositoryImpl
     }
 
     /**
+     * Get all the locally known contracts.
+     *
+     * <p>TODO: consider if it is worth making the returned type Iterator of Address
+     *
+     * @return an {@link Iterator} containing all the <b>known</b> contract addresses deployed on
+     *     the blockchain. A contract is <i>known</i> when it has been encountered in a receipt for
+     *     contract deployment.
+     */
+    public Iterator<byte[]> getContracts() {
+        // TODO: consider adding getKeys functionality to ObjectDataSource
+        return contractIndexDatabase.keys();
+    }
+
+    /**
      * Returns the {@link ContractInformation} stored for the given contract.
      *
      * @return the {@link ContractInformation} stored for the given contract

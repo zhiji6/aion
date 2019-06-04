@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,6 +73,7 @@ import org.aion.zero.impl.core.energy.AbstractEnergyStrategyLimit;
 import org.aion.zero.impl.core.energy.EnergyStrategies;
 import org.aion.zero.impl.db.AionBlockStore;
 import org.aion.zero.impl.db.AionRepositoryImpl;
+import org.aion.zero.impl.db.ContractInformation;
 import org.aion.zero.impl.sync.DatabaseType;
 import org.aion.zero.impl.sync.SyncMgr;
 import org.aion.zero.impl.types.AionBlock;
@@ -122,6 +124,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
      * configuration provider" to provide us different configurations.
      */
     ChainConfiguration chainConfiguration;
+
     private A0BCConfig config;
     private long exitOn = Long.MAX_VALUE;
     private AionRepositoryImpl repository;
@@ -139,6 +142,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
      * a volatile block that is only published when all forking/appending behaviour is completed.
      */
     private volatile AionBlock pubBestBlock;
+
     private volatile BigInteger totalDifficulty = ZERO;
     private ChainStatistics chainStats;
     private AtomicReference<BlockIdentifierImpl> bestKnownBlock = new AtomicReference<>();
@@ -2049,6 +2053,28 @@ public class AionBlockchainImpl implements IAionBlockchain {
             throw new NullPointerException();
         }
         return this.getBlockStore().getTotalDifficultyForHash(hash.toBytes());
+    }
+
+    /**
+     * Get all the locally known contracts.
+     *
+     * <p>TODO: consider if it is worth making the returned type Iterator of Address
+     *
+     * @return an {@link Iterator} containing all the <b>known</b> contract addresses deployed on
+     *     the blockchain. A contract is <i>known</i> when it has been encountered in a receipt for
+     *     contract deployment.
+     */
+    public Iterator<byte[]> getContracts() {
+        return repository.getContracts();
+    }
+
+    /**
+     * Returns the block number at which the given contract was created.
+     *
+     * @return the block number at which the given contract was created
+     */
+    public ContractInformation getIndexedContractInformation(Address contract) {
+        return repository.getIndexedContractInformation(contract);
     }
 
     /**
