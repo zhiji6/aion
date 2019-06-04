@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1036,8 +1037,33 @@ public class AionRepositoryImpl
             }
         }
 
+        //        // empty keys are not allowed
+        //        if (key == null || key.length != 32) {
+        //            return TrieNodeResult.INVALID_KEY;
+        //        }
+        //
+        //        // not allowing deletions to be imported
+        //        if (value == null || value.length == 0) {
+        //            return TrieNodeResult.INVALID_VALUE;
+        //        }
+
         db.put(key, value);
         return TrieNodeResult.IMPORTED;
+    }
+
+    /**
+     * Traverse the trie for the given database starting from the given node. Return the keys for
+     * all the missing branches that are encountered during the traversal.
+     *
+     * @param key the starting node for the trie traversal
+     * @return a set of keys that were referenced as part of the trie but could not be found in the
+     *     database
+     */
+    public Set<ByteArrayWrapper> traverseTrieFromNode(byte[] key, DatabaseType dbType) {
+        ByteArrayKeyValueDatabase db = selectDatabase(dbType);
+
+        Trie trie = new TrieImpl(db);
+        return trie.getMissingNodes(key);
     }
 
     private ByteArrayKeyValueDatabase selectDatabase(DatabaseType dbType) {

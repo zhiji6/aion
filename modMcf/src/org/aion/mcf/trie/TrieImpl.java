@@ -8,10 +8,10 @@ import static org.aion.rlp.CompactEncoder.packNibbles;
 import static org.aion.rlp.CompactEncoder.unpackToNibbles;
 import static org.aion.rlp.RLP.calcElementPrefixSize;
 import static org.aion.types.ByteArrayWrapper.wrap;
+import static org.aion.util.bytes.ByteUtil.EMPTY_BYTE_ARRAY;
 import static org.aion.util.bytes.ByteUtil.matchingNibbleLength;
 import static org.spongycastle.util.Arrays.concatenate;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -69,9 +69,9 @@ public class TrieImpl implements Trie {
     private static final byte LIST_SIZE = 17;
     private static final int MAX_SIZE = 20;
 
-    // private Object prevRoot;
+    private Object prevRoot;
     private Object root;
-    private Cache cache;
+    private final Cache cache;
 
     private boolean pruningEnabled;
 
@@ -86,25 +86,12 @@ public class TrieImpl implements Trie {
     public TrieImpl(final Cache cache, Object root) {
         this.cache = cache;
         this.root = root;
-        // this.prevRoot = root;
-    }
-
-    public void setCache(Cache cache) {
-        this.cache = cache;
+        this.prevRoot = root;
     }
 
     public Cache getCache() {
         return this.cache;
     }
-
-    //    @Deprecated
-    //    public Object getPrevRoot() {
-    //        return prevRoot;
-    //    }
-    //
-    //    public void setPrevRoot(Object previousRoot) {
-    //        prevRoot = previousRoot;
-    //    }
 
     public Object getRoot() {
         return root;
@@ -136,10 +123,6 @@ public class TrieImpl implements Trie {
         return pruningEnabled;
     }
 
-    public void setPruningEnabled(boolean pruningIsEnabled) {
-        pruningEnabled = pruningIsEnabled;
-    }
-
     public TrieImpl withPruningEnabled(boolean pruningEnabled) {
         this.pruningEnabled = pruningEnabled;
         return this;
@@ -161,33 +144,24 @@ public class TrieImpl implements Trie {
     }
 
     /** Insert key/value pair into trie. */
-    @VisibleForTesting
-    void update(String key, String value) {
+    public void update(String key, String value) {
         this.update(key.getBytes(), value.getBytes());
     }
 
     @Override
     public void update(byte[] key, byte[] value) {
+
         if (key == null) {
-            throw new NullPointerException("The key should not be null.");
+            throw new NullPointerException("key should not be null");
         }
-        // value checks are added to enforce separation of insert and delete
-        if (value == null) {
-            throw new NullPointerException("The value should not be null.");
-        }
-        // note: this can be removed if a VM will want to allow empty additions
-        if (value.length == 0) {
-            throw new IllegalArgumentException("The value should not be empty.");
-        }
-
-        byte[] k = binToNibbles(key);
-
         synchronized (cache) {
+            byte[] k = binToNibbles(key);
+
             if (isEmptyNode(root)) {
                 cache.markRemoved(getRootHash());
             }
 
-            this.root = this.insert(this.root, k, value);
+            this.root = this.insertOrDelete(this.root, k, value);
         }
     }
 
@@ -197,21 +171,14 @@ public class TrieImpl implements Trie {
     }
 
     /** Delete a key/value pair from the trie. */
-    @VisibleForTesting
-    void delete(String key) {
-        this.delete(key.getBytes());
+    public void delete(String key) {
+        this.update(key.getBytes(), EMPTY_BYTE_ARRAY);
     }
 
     @Override
     public void delete(byte[] key) {
         synchronized (cache) {
-            byte[] k = binToNibbles(key);
-
-            if (isEmptyNode(root)) {
-                cache.markRemoved(getRootHash());
-            }
-
-            this.root = this.delete(this.root, k);
+            this.update(key, EMPTY_BYTE_ARRAY);
         }
     }
 
@@ -258,6 +225,14 @@ public class TrieImpl implements Trie {
                 }
             }
             return node;
+        }
+    }
+
+    private Object insertOrDelete(Object node, byte[] key, byte[] value) {
+        if (value.length != 0) {
+            return this.insert(node, key, value);
+        } else {
+            return this.delete(node, key);
         }
     }
 
@@ -467,14 +442,14 @@ public class TrieImpl implements Trie {
         return this.cache.put(node);
     }
 
-    private static boolean isEmptyNode(Object node) {
+    private boolean isEmptyNode(Object node) {
         Value n = new Value(node);
         return (node == null
                 || (n.isString() && (n.asString().isEmpty() || n.get(0).isNull()))
                 || n.length() == 0);
     }
 
-    private static Object[] copyNode(Value currentNode) {
+    private Object[] copyNode(Value currentNode) {
         Object[] itemList = emptyStringSlice(LIST_SIZE);
         for (int i = 0; i < LIST_SIZE; i++) {
             Object cpy = currentNode.get(i).asObj();
@@ -505,7 +480,7 @@ public class TrieImpl implements Trie {
     public void sync(boolean flushCache) {
         synchronized (cache) {
             this.cache.commit(flushCache);
-            // this.prevRoot = this.root;
+            this.prevRoot = this.root;
         }
     }
 
@@ -871,32 +846,40 @@ public class TrieImpl implements Trie {
         }
     }
 
-    // not used
-    //    public boolean validate() {
-    //        try {
-    //            // fails when a referenced node is not found
-    //            // indicating that the root is not valid
-    //            scanTreeLoop(getRootHash(), new CountNodes());
-    //        } catch (Exception e) {
-    //            return false;
-    //        }
-    //        return true;
-    //    }
+    public boolean validate() {
+        synchronized (cache) {
+            try {
+                // fails when a referenced node is not found
+                // indicating that the root is not valid
+                scanTreeLoop(getRootHash(), new CountNodes());
+            } catch (Exception e) {
+                return false;
+            }
+            return true;
+        }
+    }
 
     @Override
-    public Set<ByteArrayWrapper> getMissingNodes(byte[] keyOrValue) {
-        CollectFullSetOfNodes scanAction = new CollectFullSetOfNodes();
-        ArrayList<byte[]> hashes = new ArrayList<>();
-        Value node;
-
+    public Set<ByteArrayWrapper> getMissingNodes(byte[] nodeKey) {
+        CollectFullSetOfNodes traceAction = new CollectFullSetOfNodes();
         synchronized (cache) {
-            appendHashes(keyOrValue, hashes);
+            Value value = new Value(nodeKey);
 
-            int items = hashes.size();
-            for (int i = 0; i < items; i++) {
-                byte[] myHash = hashes.get(i);
+            if (value.isHashCode()) {
+                scanTreeForMissingNodes(nodeKey, traceAction);
+            }
+        }
+        return traceAction.getCollectedHashes();
+    }
 
-                node = this.getCache().get(myHash);
+    private void scanTreeForMissingNodes(byte[] hash, ScanAction scanAction) {
+        ArrayList<byte[]> hashes = new ArrayList<>();
+        hashes.add(hash);
+
+        while (!hashes.isEmpty()) {
+            synchronized (cache) {
+                byte[] myHash = hashes.remove(0);
+                Value node = this.getCache().get(myHash);
                 if (node == null) {
                     // performs action for missing nodes
                     scanAction.doOnNode(myHash, null);
@@ -907,14 +890,12 @@ public class TrieImpl implements Trie {
                             Value val = new Value(siblings.get(1));
                             if (val.isHashCode() && !hasTerminator((byte[]) siblings.get(0))) {
                                 hashes.add(val.asBytes());
-                                items++;
                             }
                         } else {
                             for (int j = 0; j < LIST_SIZE; ++j) {
                                 Value val = new Value(siblings.get(j));
                                 if (val.isHashCode()) {
                                     hashes.add(val.asBytes());
-                                    items++;
                                 }
                             }
                         }
@@ -922,22 +903,19 @@ public class TrieImpl implements Trie {
                 }
             }
         }
-
-        return scanAction.getCollectedHashes();
     }
 
     @Override
-    public Map<ByteArrayWrapper, byte[]> getReferencedTrieNodes(byte[] keyOrValue, int limit) {
+    public Map<ByteArrayWrapper, byte[]> getReferencedTrieNodes(byte[] value, int limit) {
         CollectMappings collect = new CollectMappings();
         ArrayList<byte[]> hashes = new ArrayList<>();
-        Value node;
+        Value node = Value.fromRlpEncoded(value);
 
         synchronized (cache) {
-            appendHashes(keyOrValue, hashes);
+            appendHashes(node, hashes);
 
-            int items = hashes.size();
-            for (int i = 0; (i < items) && (collect.getSize() < limit); i++) {
-                byte[] myHash = hashes.get(i);
+            while (!hashes.isEmpty() && collect.getSize() < limit) {
+                byte[] myHash = hashes.remove(0);
                 node = this.getCache().get(myHash);
 
                 if (node != null) {
@@ -947,14 +925,12 @@ public class TrieImpl implements Trie {
                             Value val = new Value(siblings.get(1));
                             if (val.isHashCode() && !hasTerminator((byte[]) siblings.get(0))) {
                                 hashes.add(val.asBytes());
-                                items++;
                             }
                         } else {
                             for (int j = 0; j < LIST_SIZE; ++j) {
                                 Value val = new Value(siblings.get(j));
                                 if (val.isHashCode()) {
                                     hashes.add(val.asBytes());
-                                    items++;
                                 }
                             }
                         }
@@ -966,20 +942,7 @@ public class TrieImpl implements Trie {
         return collect.getNodes();
     }
 
-    private void appendHashes(byte[] bytes, ArrayList<byte[]> hashes) {
-        Value node;
-
-        if (bytes.length == 32) {
-            // it's considered a hashCode/key according to Value.isHashCode()
-            node = new Value(bytes);
-        } else {
-            node = Value.fromRlpEncoded(bytes);
-        }
-
-        if (node == null) {
-            return;
-        }
-
+    private void appendHashes(Value node, ArrayList<byte[]> hashes) {
         if (node.isHashCode()) {
             hashes.add(node.asBytes());
         } else if (node.isList()) {

@@ -399,6 +399,10 @@ public final class SyncMgr {
         return new HashMap<>(this.peerStates);
     }
 
+    public int getActivePeers() {
+        return p2pMgr.getActiveNodes().size();
+    }
+
     public SyncStats getSyncStats() {
         return this.stats;
     }

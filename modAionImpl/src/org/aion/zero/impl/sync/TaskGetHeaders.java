@@ -16,6 +16,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import org.aion.p2p.INode;
 import org.aion.p2p.IP2pMgr;
+import org.aion.zero.impl.sync.PeerState.State;
 import org.aion.zero.impl.sync.msg.ReqBlocksHeaders;
 import org.aion.zero.impl.sync.statistics.RequestType;
 import org.slf4j.Logger;
@@ -110,8 +111,13 @@ final class TaskGetHeaders implements Runnable {
                 }
             case THUNDER:
                 {
-                    // there have not been STEP_COUNT sequential requests
-                    if (state.isUnderRepeatThreshold()) {
+                    if (state.getState() == State.REQUEST_PIVOT_BLOCK) {
+                        // requesting a single block for pivot selection
+                        size = 1;
+                        from = state.getBase();
+                        break;
+                    } else if (state.isUnderRepeatThreshold()) {
+                        // there have not been STEP_COUNT sequential requests
                         state.setBase(selfNumber);
                         size = LARGE_REQUEST_SIZE;
                         from = Math.max(1, selfNumber - FAR_OVERLAPPING_BLOCKS);

@@ -13,6 +13,7 @@ import org.aion.p2p.IP2pMgr;
 import org.aion.zero.impl.config.CfgAion;
 import org.aion.zero.impl.core.IAionBlockchain;
 import org.aion.zero.impl.sync.SyncStats;
+import org.aion.zero.impl.sync.FastSyncMgr;
 import org.aion.zero.impl.sync.msg.BroadcastNewBlock;
 import org.aion.zero.impl.sync.msg.ResStatus;
 import org.aion.zero.impl.sync.statistics.BlockType;
@@ -63,6 +64,28 @@ public class BlockPropagationHandler {
             final SyncStats syncStats,
             final IP2pMgr p2pManager,
             BlockHeaderValidator<A0BlockHeader> headerValidator,
+            final boolean isSyncOnlyNode,
+            final byte apiVersion,
+            final IPendingStateInternal pendingState) {
+        this(
+                cacheSize,
+                blockchain,
+                syncStats,
+                p2pManager,
+                headerValidator,
+                new FastSyncMgr(),
+                isSyncOnlyNode,
+                apiVersion,
+                pendingState);
+    }
+
+    public BlockPropagationHandler(
+            final int cacheSize,
+            final IAionBlockchain blockchain,
+            final SyncStats syncStats,
+            final IP2pMgr p2pManager,
+            BlockHeaderValidator<A0BlockHeader> headerValidator,
+            final FastSyncMgr fastSyncMgr,
             final boolean isSyncOnlyNode,
             final byte apiVersion,
             final IPendingStateInternal pendingState) {

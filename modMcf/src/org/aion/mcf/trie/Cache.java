@@ -3,15 +3,11 @@ package org.aion.mcf.trie;
 import static org.aion.rlp.Value.fromRlpEncoded;
 import static org.aion.types.ByteArrayWrapper.wrap;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import org.aion.crypto.HashUtil;
@@ -28,8 +24,8 @@ public class Cache {
     private static final Logger LOG = AionLoggerFactory.getLogger(LogEnum.DB.name());
 
     private ByteArrayKeyValueStore dataSource;
-    private Map<ByteArrayWrapper, Node> nodes = new LinkedHashMap<>();
-    private Set<ByteArrayWrapper> removedNodes = new HashSet<>();
+    private final Map<ByteArrayWrapper, Node> nodes = new LinkedHashMap<>();
+    private final Set<ByteArrayWrapper> removedNodes = new HashSet<>();
     private boolean isDirty;
 
     public Cache(ByteArrayKeyValueStore dataSource) {
@@ -84,6 +80,7 @@ public class Cache {
         return null;
     }
 
+    @SuppressWarnings("unused")
     public synchronized void delete(byte[] key) {
         ByteArrayWrapper wrappedKey = wrap(key);
         this.nodes.remove(wrappedKey);
@@ -106,7 +103,6 @@ public class Cache {
         // long start = System.nanoTime();
         // int batchMemorySize = 0;
         Map<byte[], byte[]> batch = new HashMap<>();
-        List<byte[]> deleteBatch = new ArrayList<>();
         for (ByteArrayWrapper nodeKey : this.nodes.keySet()) {
             Node node = this.nodes.get(nodeKey);
 
@@ -126,11 +122,10 @@ public class Cache {
             }
         }
         for (ByteArrayWrapper removedNode : removedNodes) {
-            deleteBatch.add(removedNode.getData());
+            batch.put(removedNode.getData(), null);
         }
 
         this.dataSource.putBatch(batch);
-        this.dataSource.deleteBatch(deleteBatch);
         this.isDirty = false;
         if (flushCache) {
             this.nodes.clear();
@@ -138,11 +133,10 @@ public class Cache {
         this.removedNodes.clear();
     }
 
-    // not used
-    //    public synchronized void undo() {
-    //        this.nodes.entrySet().removeIf(entry -> entry.getValue().isDirty());
-    //        this.isDirty = false;
-    //    }
+    public synchronized void undo() {
+        this.nodes.entrySet().removeIf(entry -> entry.getValue().isDirty());
+        this.isDirty = false;
+    }
 
     public synchronized boolean isDirty() {
         return isDirty;
@@ -209,64 +203,5 @@ public class Cache {
 
     public int getSize() {
         return nodes.size();
-    }
-
-    /**
-     * Returns a copy of this cache.
-     *
-     * <p>The copied cache and this cache will each hold a reference to the same data source, and
-     * each copied {@link Node} object will retain the same reference to its {@link Value} object as
-     * its original.
-     *
-     * @return A copy of this cache.
-     */
-    public Cache copy() {
-        Cache cacheCopy = new Cache(this.dataSource);
-        cacheCopy.isDirty = this.isDirty;
-        cacheCopy.nodes = copyOfNodes();
-        cacheCopy.removedNodes = copyOfRemovedNodes();
-        return cacheCopy;
-    }
-
-    private Map<ByteArrayWrapper, Node> copyOfNodes() {
-        if (this.nodes == null) {
-            return null;
-        }
-
-        Map<ByteArrayWrapper, Node> nodesCopy = new HashMap<>();
-        for (Entry<ByteArrayWrapper, Node> nodesEntry : this.nodes.entrySet()) {
-            ByteArrayWrapper keyWrapper = null;
-
-            if (nodesEntry.getKey() != null) {
-                byte[] keyBytes = nodesEntry.getKey().getData();
-                keyWrapper = new ByteArrayWrapper(Arrays.copyOf(keyBytes, keyBytes.length));
-            }
-
-            nodesCopy.put(
-                    keyWrapper,
-                    (nodesEntry.getValue() == null) ? null : nodesEntry.getValue().copy());
-        }
-        return nodesCopy;
-    }
-
-    private Set<ByteArrayWrapper> copyOfRemovedNodes() {
-        if (this.removedNodes == null) {
-            return null;
-        }
-
-        Set<ByteArrayWrapper> removedNodesCopy = new HashSet<>();
-        for (ByteArrayWrapper removedNode : this.removedNodes) {
-            ByteArrayWrapper removedNodeWrapper = null;
-
-            if (removedNode != null) {
-                byte[] removedNodeBytes = removedNode.toBytes();
-                removedNodeWrapper =
-                        new ByteArrayWrapper(
-                                Arrays.copyOf(removedNodeBytes, removedNodeBytes.length));
-            }
-
-            removedNodesCopy.add(removedNodeWrapper);
-        }
-        return removedNodesCopy;
     }
 }
