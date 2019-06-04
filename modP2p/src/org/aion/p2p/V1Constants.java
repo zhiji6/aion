@@ -7,6 +7,11 @@ package org.aion.p2p;
  */
 public class V1Constants {
 
+    public static final int //
+            REQUIRED_CONNECTIONS = 6, //
+            PIVOT_DISTANCE_TO_HEAD = 1024, //
+            PIVOT_RESET_DISTANCE = 2 * PIVOT_DISTANCE_TO_HEAD; //
+
     /** The size of the hashes used in the trie implementation. */
     public static int HASH_SIZE = 32;
 

@@ -38,9 +38,11 @@ import org.aion.zero.impl.sync.handler.BroadcastTxHandler;
 import org.aion.zero.impl.sync.handler.ReqBlocksBodiesHandler;
 import org.aion.zero.impl.sync.handler.ReqBlocksHeadersHandler;
 import org.aion.zero.impl.sync.handler.ReqStatusHandler;
+import org.aion.zero.impl.sync.handler.RequestTrieDataHandler;
 import org.aion.zero.impl.sync.handler.ResBlocksBodiesHandler;
 import org.aion.zero.impl.sync.handler.ResBlocksHeadersHandler;
 import org.aion.zero.impl.sync.handler.ResStatusHandler;
+import org.aion.zero.impl.sync.handler.ResponseTrieDataHandler;
 import org.aion.zero.impl.types.AionBlock;
 import org.aion.zero.types.A0BlockHeader;
 import org.slf4j.Logger;
@@ -168,6 +170,13 @@ public class AionHub {
                         cfgNetP2p.getBootlistSyncOnly(),
                         cfgNetP2p.getErrorTolerance());
 
+        // initiate fast sync only if the database is empty
+        boolean enableFastSync =
+                // TODO: get value from CLI
+                true
+                        // cannot fast sync if start is not genesis
+                        && startingBlock instanceof AionGenesis;
+
         this.syncMgr = SyncMgr.inst();
         this.syncMgr.init(
                 _blockchain,
@@ -180,7 +189,8 @@ public class AionHub {
                         ? cfg.getSync().getSlowImportTime()
                         : 0, // set to 0 when disabled
                 cfg.getSync().getCompactFrequency(),
-                cfg.getNet().getP2p().getMaxActiveNodes());
+                cfg.getNet().getP2p().getMaxActiveNodes(),
+                enableFastSync);
 
         ChainConfiguration chainConfig = new ChainConfiguration();
         this.propHandler =
@@ -194,7 +204,7 @@ public class AionHub {
                         apiVersion,
                         mempool);
 
-        registerCallback();
+        registerCallback(enableFastSync);
 
         if (!forTest) {
             p2pMgr.run();
@@ -219,7 +229,7 @@ public class AionHub {
         initializeHub(_cfgAion, _blockchain, _repository, forTest);
     }
 
-    private void registerCallback() {
+    private void registerCallback(boolean enableFastSync) {
         List<Handler> cbs = new ArrayList<>();
         cbs.add(
                 new ReqStatusHandler(
@@ -237,6 +247,15 @@ public class AionHub {
         cbs.add(new ResBlocksBodiesHandler(syncLOG, syncMgr, p2pMgr));
         cbs.add(new BroadcastTxHandler(syncLOG, mempool, p2pMgr, inSyncOnlyMode));
         cbs.add(new BroadcastNewBlockHandler(syncLOG, propHandler, p2pMgr));
+
+        // TODO: add fast sync handlers for requests from other peers
+        cbs.add(new RequestTrieDataHandler(syncLOG, blockchain, p2pMgr));
+        if (enableFastSync) {
+            // TODO: add fast sync handlers for requests to other peers
+            // these requests are made only when fast sync is enabled
+            // TODO: add used queue
+            cbs.add(new ResponseTrieDataHandler(syncLOG, null));
+        }
         this.p2pMgr.register(cbs);
     }
 

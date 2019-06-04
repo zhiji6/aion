@@ -20,7 +20,7 @@ import org.aion.log.AionLoggerFactory;
 import org.aion.log.LogEnum;
 import org.aion.mcf.valid.BlockHeaderValidator;
 import org.aion.p2p.INode;
-import org.aion.p2p.impl1.P2pMgr;
+import org.aion.p2p.IP2pMgr;
 import org.aion.util.types.ByteArrayWrapper;
 import org.aion.zero.impl.AionBlockchainImpl;
 import org.aion.zero.impl.sync.msg.RequestBlocks;
@@ -45,12 +45,13 @@ public final class FastSyncManager {
 
     private final AionBlockchainImpl chain;
     private final BlockHeaderValidator<A0BlockHeader> blockHeaderValidator;
-    private final P2pMgr p2pMgr;
+    private final IP2pMgr p2pMgr;
 
     // TODO: consider adding a FAST_SYNC log as well
     private static final Logger log = AionLoggerFactory.getLogger(LogEnum.SYNC.name());
 
     private AionBlock pivot = null;
+    private long pivotNumber = -1;
 
     Map<ByteArrayWrapper, Long> importedBlockHashes =
             Collections.synchronizedMap(new LRUMap<>(4096));
@@ -58,6 +59,7 @@ public final class FastSyncManager {
             Collections.synchronizedMap(new LRUMap<>(1000));
 
     BlockingQueue<BlocksWrapper> downloadedBlocks = new LinkedBlockingQueue<>();
+    public BlockingQueue<BlocksWrapper> pivotCandidates = new LinkedBlockingQueue<>();
     Map<ByteArrayWrapper, BlocksWrapper> receivedBlocks = new HashMap<>();
 
     private final Map<ByteArrayWrapper, byte[]> importedTrieNodes = new ConcurrentHashMap<>();
@@ -65,7 +67,7 @@ public final class FastSyncManager {
     public FastSyncManager(
             AionBlockchainImpl chain,
             BlockHeaderValidator<A0BlockHeader> blockHeaderValidator,
-            final P2pMgr p2pMgr) {
+            final IP2pMgr p2pMgr) {
         this.enabled = true;
         this.chain = chain;
         this.blockHeaderValidator = blockHeaderValidator;
@@ -77,6 +79,7 @@ public final class FastSyncManager {
         Objects.requireNonNull(pivot);
 
         this.pivot = pivot;
+        this.pivotNumber = pivot.getNumber();
     }
 
     public AionBlock getPivot() {

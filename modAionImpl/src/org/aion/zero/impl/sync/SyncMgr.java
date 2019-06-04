@@ -84,6 +84,7 @@ public final class SyncMgr {
     private BlockHeaderValidator<A0BlockHeader> blockHeaderValidator;
     private volatile long timeUpdated = 0;
     private AtomicBoolean queueFull = new AtomicBoolean(false);
+    private FastSyncManager fastSyncManager = null;
 
     public static SyncMgr inst() {
         return AionSyncMgrHolder.INSTANCE;
@@ -170,7 +171,8 @@ public final class SyncMgr {
             final Set<StatsType> showStatistics,
             final int _slowImportTime,
             final int _compactFrequency,
-            final int maxActivePeers) {
+            final int maxActivePeers,
+            final boolean enableFastSync) {
         p2pMgr = _p2pMgr;
         chain = _chain;
         evtMgr = _evtMgr;
@@ -226,6 +228,12 @@ public final class SyncMgr {
                                     AionLoggerFactory.getLogger(LogEnum.P2P.name())),
                             "sync-ss");
             syncSs.start();
+        }
+
+        if (enableFastSync) {
+            fastSyncManager = new FastSyncManager(chain, blockHeaderValidator, p2pMgr);
+            Thread initPivot = new Thread(new TaskInitializePivot(log, this), "pivot-init");
+            initPivot.start();
         }
 
         setupEventHandler();
@@ -401,6 +409,14 @@ public final class SyncMgr {
 
     public SyncStats getSyncStats() {
         return this.stats;
+    }
+
+    public int getActivePeers() {
+        return p2pMgr.getActiveNodes().size();
+    }
+
+    public FastSyncManager getFastSyncManager() {
+        return fastSyncManager;
     }
 
     private static final class AionSyncMgrHolder {
