@@ -7,10 +7,19 @@ import static org.aion.zero.impl.BlockchainTestUtils.generateTransactions;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.aion.avm.core.dappreading.JarBuilder;
+import org.aion.avm.userlib.CodeAndArguments;
 import org.aion.base.AionTransaction;
+import org.aion.base.TransactionTypes;
 import org.aion.crypto.ECKey;
+import org.aion.log.AionLoggerFactory;
 import org.aion.mcf.core.ImportResult;
+import org.aion.mcf.db.InternalVmType;
+import org.aion.mcf.valid.TransactionTypeRule;
 import org.aion.types.AionAddress;
 import org.aion.util.biginteger.BIUtil;
 import org.aion.util.bytes.ByteUtil;
@@ -19,8 +28,10 @@ import org.aion.util.types.ByteArrayWrapper;
 import org.aion.vm.BlockCachingContext;
 import org.aion.vm.LongLivedAvm;
 import org.aion.zero.impl.blockchain.ChainConfiguration;
+import org.aion.zero.impl.db.ContractInformation;
 import org.aion.zero.impl.types.AionBlock;
 import org.aion.zero.impl.types.AionBlockSummary;
+import org.aion.zero.impl.vm.contracts.AvmHelloWorld;
 import org.aion.zero.types.AionTxReceipt;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -31,6 +42,19 @@ public class BlockchainForkingTest {
 
     @Before
     public void setup() {
+        // reduce default logging levels
+        Map<String, String> cfg = new HashMap<>();
+        cfg.put("API", "ERROR");
+        cfg.put("CONS", "ERROR");
+        cfg.put("DB", "ERROR");
+        cfg.put("GEM", "ERROR");
+        cfg.put("P2P", "ERROR");
+        cfg.put("ROOT", "ERROR");
+        cfg.put("SYNC", "ERROR");
+        cfg.put("TX", "DEBUG");
+        cfg.put("VM", "DEBUG");
+        AionLoggerFactory.init(cfg);
+
         LongLivedAvm.createAndStartLongLivedAvm();
     }
 
@@ -646,18 +670,14 @@ public class BlockchainForkingTest {
         // contract source code for reference
         /*
         pragma solidity ^0.4.15;
-
         contract Storage {
             uint128 value;
-
             mapping(uint128 => uint128) private userPrivilege;
-
             struct Entry {
                 uint128 id;
                 uint128 value;
             }
             Entry value2;
-
             function Storage(){
             value = 10;
             userPrivilege[value] = value;
@@ -665,18 +685,15 @@ public class BlockchainForkingTest {
             value2.value = 200;
             userPrivilege[value2.id] = value2.value;
             }
-
             function setValue(uint128 newValue)  {
             value = newValue;
             userPrivilege[newValue] = newValue+1;
             }
-
             function setValue2(uint128 v1, uint128 v2)  {
             value2.id = v1;
             value2.value = v2;
             userPrivilege[v1] = v1+v2;
             }
-
             function getValue() returns(uint)  {
             return value;
             }
@@ -749,6 +766,159 @@ public class BlockchainForkingTest {
         contractCallTx.sign(sender);
 
         return contractCallTx;
+    }
+
+    /**
+     * Ensures that if a side-chain block is imported after a main-chain block creating the same
+     * contract address X but using different VMs, then each chain will operate on the correct VM.
+     */
+    @Test
+    public void testVmTypeRetrieval_ImportSideChainWithConflictingContractVM() {
+        // blocks to be built
+        AionBlock block, fastBlock, slowBlock, highBlock, lowBlock;
+
+        // transactions used in blocks
+        AionTransaction deployOnAVM, deployOnFVM, callAVM, callFVM;
+        List<AionTransaction> txs;
+
+        // for processing block results
+        Pair<ImportResult, AionBlockSummary> connectResult;
+        ImportResult result;
+        AionTxReceipt receipt;
+
+        // build a blockchain
+        TransactionTypeRule.allowAVMContractTransaction();
+        List<ECKey> accounts = generateAccounts(10);
+        StandaloneBlockchain.Builder builder = new StandaloneBlockchain.Builder();
+        StandaloneBlockchain sourceChain =
+                builder.withValidatorConfiguration("simple")
+                        .withDefaultAccounts(accounts)
+                        .build()
+                        .bc;
+        StandaloneBlockchain testChain =
+                builder.withValidatorConfiguration("simple")
+                        .withDefaultAccounts(accounts)
+                        .build()
+                        .bc;
+        ECKey sender = accounts.remove(0);
+
+        assertThat(testChain).isNotEqualTo(sourceChain);
+        assertThat(testChain.genesis).isEqualTo(sourceChain.genesis);
+
+        long time = System.currentTimeMillis();
+
+        // ****** setup side chain ******
+
+        // create a slow / fast block distinction
+        // deploy contracts on different VMs for the two chains
+        deployOnAVM = deployHelloWorldAVM(sender);
+        fastBlock =
+                sourceChain.createNewBlockInternal(
+                                sourceChain.getBestBlock(),
+                                Arrays.asList(deployOnAVM),
+                                true,
+                                time / 10_000L)
+                        .block;
+
+        deployOnFVM = deployContract(sender);
+        slowBlock =
+                new AionBlock(
+                        sourceChain.createNewBlockInternal(
+                                        sourceChain.getBestBlock(),
+                                        Arrays.asList(deployOnFVM),
+                                        true,
+                                        time / 10_000L)
+                                .block);
+
+        slowBlock.getHeader().setTimestamp(time / 10_000L + 100);
+        time += 100;
+
+        // sourceChain imports only fast block
+        connectResult = sourceChain.tryToConnectAndFetchSummary(fastBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+
+        AionAddress contract = receipt.getTransaction().getContractAddress();
+
+        // testChain imports both blocks
+        connectResult = testChain.tryToConnectAndFetchSummary(fastBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+        assertThat(receipt.getTransaction().getContractAddress()).isEqualTo(contract);
+
+        connectResult = testChain.tryToConnectAndFetchSummary(slowBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_NOT_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+        assertThat(receipt.getTransaction().getContractAddress()).isEqualTo(contract);
+
+        // ****** check that the correct contract details are kept ******
+
+        // TODO: get account state and code hash
+        //        // check that main chain is correct
+        //
+        // assertThat(sourceChain.getRepository().getVMUsed(contract)).isEqualTo(InternalVmType.AVM);
+        //
+        // assertThat(testChain.getRepository().getVMUsed(contract)).isEqualTo(InternalVmType.AVM);
+
+        // check information details
+        // the fast check database returns the correct VM type for each contract instance
+        byte[] codeHashAVM = sourceChain.getRepository().getAccountState(contract).getCodeHash();
+        testChain.getRepository().setRoot(slowBlock.getStateRoot());
+        byte[] codeHashFVM = testChain.getRepository().getAccountState(contract).getCodeHash();
+        testChain.getRepository().setRoot(slowBlock.getStateRoot());
+
+        ContractInformation infoSingleImport =
+                sourceChain.getRepository().getIndexedContractInformation(contract);
+        System.out.println("without side chain:" + infoSingleImport);
+
+        assertThat(infoSingleImport.getVmUsed(codeHashAVM)).isEqualTo(InternalVmType.AVM);
+        assertThat(infoSingleImport.getInceptionBlocks(codeHashAVM))
+                .isEqualTo(Set.of(fastBlock.getHashWrapper()));
+        assertThat(infoSingleImport.getVmUsed(codeHashFVM)).isEqualTo(InternalVmType.UNKNOWN);
+        assertThat(infoSingleImport.getInceptionBlocks(codeHashFVM)).isEmpty();
+
+        ContractInformation infoMultiImport =
+                testChain.getRepository().getIndexedContractInformation(contract);
+        System.out.println("with side chain:" + infoMultiImport);
+
+        assertThat(infoMultiImport.getVmUsed(codeHashAVM)).isEqualTo(InternalVmType.AVM);
+        assertThat(infoMultiImport.getInceptionBlocks(codeHashAVM))
+                .isEqualTo(Set.of(fastBlock.getHashWrapper()));
+        assertThat(infoMultiImport.getVmUsed(codeHashFVM)).isEqualTo(InternalVmType.FVM);
+        assertThat(infoMultiImport.getInceptionBlocks(codeHashFVM))
+                .isEqualTo(Set.of(slowBlock.getHashWrapper()));
+    }
+
+    private AionTransaction deployHelloWorldAVM(ECKey sender) {
+        byte[] helloAVM =
+                new CodeAndArguments(
+                                JarBuilder.buildJarForMainAndClassesAndUserlib(AvmHelloWorld.class),
+                                new byte[0])
+                        .encodeToBytes();
+
+        AionTransaction transaction =
+                new AionTransaction(
+                        BigInteger.ZERO.toByteArray(),
+                        new AionAddress(sender.getAddress()),
+                        null,
+                        BigInteger.ZERO.toByteArray(),
+                        helloAVM,
+                        5_000_000L,
+                        10_123_456_789L,
+                        TransactionTypes.AVM_CREATE_CODE);
+
+        transaction.sign(sender);
+
+        return transaction;
     }
 
     /*
