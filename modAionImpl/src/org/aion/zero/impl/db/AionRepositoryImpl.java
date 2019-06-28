@@ -1149,6 +1149,7 @@ public class AionRepositoryImpl
 
     /** Used when the codeHash is already known. */
     public InternalVmType getVMUsed(AionAddress contract, byte[] codeHash) {
+        System.out.println("getVM: " + contract + " code: " + Hex.toHexString(codeHash));
         if (ContractInfo.isPrecompiledContract(contract)) {
             // skip the call to disk
             return InternalVmType.FVM;
