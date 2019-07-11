@@ -7,10 +7,14 @@ package org.aion.p2p;
  */
 public class V1Constants {
 
-    public static final int //
-            REQUIRED_CONNECTIONS = 6, //
-            PIVOT_DISTANCE_TO_HEAD = 1024, //
-            PIVOT_RESET_DISTANCE = 2 * PIVOT_DISTANCE_TO_HEAD; //
+    public static final int REQUIRED_CONNECTIONS = 6;
+    public static final long PIVOT_DISTANCE_TO_HEAD = 1024;
+
+    // TODO: find optimal distance for disabling FastSync
+    /** This value must be greater than {@link #PIVOT_DISTANCE_TO_HEAD} */
+    public static final long MINIMUM_HEIGHT = PIVOT_DISTANCE_TO_HEAD + 1024;
+
+    public static final long PIVOT_RESET_DISTANCE = 2 * PIVOT_DISTANCE_TO_HEAD;
 
     /** The size of the hashes used in the trie implementation. */
     public static int HASH_SIZE = 32;

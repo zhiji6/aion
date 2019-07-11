@@ -74,6 +74,15 @@ public final class FastSyncManager {
         this.p2pMgr = p2pMgr;
     }
 
+    public void disable() {
+        this.enabled = false;
+        // TODO send message to sync-ib thread to start sync
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     @VisibleForTesting
     void setPivot(AionBlock pivot) {
         Objects.requireNonNull(pivot);

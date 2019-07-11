@@ -1,5 +1,6 @@
 package org.aion.zero.impl.sync;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +25,9 @@ final class TaskInitializePivot implements Runnable {
     private Map<Integer, AionBlock> candidatesByPeerId = new HashMap<>();
     private BlockingQueue<BlocksWrapper> pivotCandidates;
 
+    /** Time to wait after a faild check of pre-conditions. */
+    private static final long SLEEP_TIME = 1000;
+
     /**
      * Constructor.
      *
@@ -38,41 +42,70 @@ final class TaskInitializePivot implements Runnable {
         this.pivotCandidates = fastSyncMgr.pivotCandidates;
     }
 
+    private void sleep() {
+        try {
+            Thread.sleep(SLEEP_TIME);
+        } catch (InterruptedException e) {
+            if (fastSyncMgr.isEnabled() && fastSyncMgr.getPivot() == null) {
+                // interrupted without requested shutdown
+                log.error("<initialize-pivot: interrupted without shutdown request>", e);
+            }
+            return;
+        }
+    }
+
     @Override
     public void run() {
-        // initializing the pivot for fast sync should be highest priority
-        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+        // initializing the pivot for fast sync should have a high priority
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 1);
 
         // repeats as long as the pivot is not initialized
         while (fastSyncMgr.getPivot() == null) {
             // ensure minimum number of required peers before initializing the pivot
-            if (syncMgr.getActivePeers() < V1Constants.REQUIRED_CONNECTIONS) {
+            int peerCount = syncMgr.getActivePeers();
+            if (peerCount < V1Constants.REQUIRED_CONNECTIONS) {
+                if (log.isDebugEnabled()) {
+                    log.debug("<initialize-pivot: current peers={}, waiting for more>", peerCount);
+                }
+                sleep();
                 continue;
             }
 
             // ensure known network status before initializing the pivot
-            if (syncMgr.getNetworkBestBlockNumber() == 0) {
+            long networkBest = syncMgr.getNetworkBestBlockNumber();
+            if (networkBest == 0) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "<initialize-pivot: unknown network best, waiting for information>",
+                            networkBest);
+                }
+                sleep();
                 continue;
             }
 
+            // ensure that doing as state-transfer sync makes sense
+            if (networkBest < V1Constants.MINIMUM_HEIGHT) {
+                log.info("<initialize-pivot: disabling fast sync due to short chain>");
+                fastSyncMgr.disable();
+                return;
+            }
+
+            // select number for pivot block
             if (pivotNumber == -1) {
-                // set number for pivot block
-                pivotNumber =
-                        syncMgr.getNetworkBestBlockNumber() - V1Constants.PIVOT_DISTANCE_TO_HEAD;
+                // the value will be positive due to the MINIMUM_HEIGHT check above
+                pivotNumber = networkBest - V1Constants.PIVOT_DISTANCE_TO_HEAD;
+                log.info("<initialize-pivot: set pivot number={}>", pivotNumber);
 
-                // ensure that having a pivot makes sense
-                if (pivotNumber <= V1Constants.PIVOT_DISTANCE_TO_HEAD) {
-                    pivotNumber = -1;
-                    // TODO: consider disabling fast sync in this case
-                    continue;
+                // TODO: incorrect placement
+                // request pivot blocks from each peer on the network
+                Collection<PeerState> establishedPeers = syncMgr.getPeerStates().values();
+                if (establishedPeers.size() > V1Constants.REQUIRED_CONNECTIONS) {
+                    for (PeerState ps : syncMgr.getPeerStates().values()) {
+                        ps.setBaseForPivotRequest(pivotNumber);
+                    }
                 }
 
-                // request pivot blocks from network
-                // TODO: ensure that some peer states actually exist
-                for (PeerState ps : syncMgr.getPeerStates().values()) {
-                    ps.setBaseForPivotRequest(pivotNumber);
-                }
-
+                sleep();
                 continue;
             } else {
                 // already have the target block for pivot
@@ -83,9 +116,8 @@ final class TaskInitializePivot implements Runnable {
                     tnw = fastSyncMgr.pivotCandidates.take();
                     candidatesByPeerId.put(tnw.getNodeIdHash(), tnw.getBlocks().get(0));
                 } catch (InterruptedException ex) {
-                    if (!fastSyncMgr.isComplete()) {
-                        // TODO log
-                        log.error("<import-trie-nodes: interrupted without shutdown request>", ex);
+                    if (fastSyncMgr.getPivot() == null) {
+                        log.error("<initialize-pivot: interrupted without shutdown request>", ex);
                     }
                     return;
                 }
@@ -116,8 +148,7 @@ final class TaskInitializePivot implements Runnable {
         }
 
         if (log.isDebugEnabled()) {
-            // TODO log
-            log.debug("<import-trie-nodes: shutdown>");
+            log.debug("<initialize-pivot: shutdown>");
         }
     }
 }
