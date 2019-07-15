@@ -16,6 +16,7 @@ import org.aion.avm.userlib.CodeAndArguments;
 import org.aion.base.AionTransaction;
 import org.aion.base.TransactionTypes;
 import org.aion.crypto.ECKey;
+import org.aion.crypto.HashUtil;
 import org.aion.log.AionLoggerFactory;
 import org.aion.mcf.core.ImportResult;
 import org.aion.mcf.db.InternalVmType;
@@ -45,7 +46,7 @@ public class BlockchainForkingTest {
         // reduce default logging levels
         Map<String, String> cfg = new HashMap<>();
         cfg.put("API", "ERROR");
-        cfg.put("CONS", "ERROR");
+        cfg.put("CONS", "DEBUG");
         cfg.put("DB", "ERROR");
         cfg.put("GEM", "ERROR");
         cfg.put("P2P", "ERROR");
@@ -768,6 +769,150 @@ public class BlockchainForkingTest {
         return contractCallTx;
     }
 
+    /** TODO */
+    @Test
+    public void testVmTypeRetrieval_ImportSideChainWithConflictingContractVMAndSameCode() {
+        // blocks to be built
+        AionBlock block, fastBlock, slowBlock, highBlock, lowBlock;
+
+        // transactions used in blocks
+        AionTransaction deployOnAVM, deployOnFVM, callAVM, callFVM;
+        List<AionTransaction> txs;
+
+        // for processing block results
+        Pair<ImportResult, AionBlockSummary> connectResult;
+        ImportResult result;
+        AionTxReceipt receipt;
+
+        // build a blockchain
+        TransactionTypeRule.allowAVMContractTransaction();
+        List<ECKey> accounts = generateAccounts(10);
+        StandaloneBlockchain.Builder builder = new StandaloneBlockchain.Builder();
+        StandaloneBlockchain sourceChain =
+                builder.withValidatorConfiguration("simple")
+                        .withDefaultAccounts(accounts)
+                        .build()
+                        .bc;
+        StandaloneBlockchain testChain =
+                builder.withValidatorConfiguration("simple")
+                        .withDefaultAccounts(accounts)
+                        .build()
+                        .bc;
+        ECKey sender = accounts.remove(0);
+
+        assertThat(testChain).isNotEqualTo(sourceChain);
+        assertThat(testChain.genesis).isEqualTo(sourceChain.genesis);
+
+        long time = System.currentTimeMillis();
+
+        // ****** setup side chain ******
+
+        byte[] avmHelloWorldCode =
+                ByteUtil.hexStringToBytes(
+                        "00000737504b0304140008080800d4ad282b000000000000000000000000140004004d4554412d494e462f4d414e49464553542e4d46feca0000f34dcccb4c4b2d2ed10d4b2d2acecccfb35230d433e0e5f24dccccd375ce492c2eb65270e4e5e2e50200504b07082bc2bf352a00000028000000504b0304140008080800d4ad282b00000000000000000000000007000000412e636c61737365905d4f135110869fd342cf765d28b4a0f8ddfab94b89bdf306636235c628c68b1a087275ba6ceac26117ca42c24ff15fe80d366abc35f13f699cb398187592397366de77e69d73befffcf415b8cf8a423dd228c5dc8e39363d6bb251efd57027890b4d55d17896589b6fe463bb7dcf11842e5e0da375455062ed12ec78788a5973bcd7ebdb3cde8ddf9a34d3f80abd3f4eb3c2668ac570ed8fc6a090f268355a0f0898f139c7ac626a4fba2484d1565f94fa9aa60c1825c51353988005e61d7151517b906669f150311d6ef5dd8c0b2cf9b4b8285d43c54218fd2f1570992b8e74f5afc79ea19aeb0aefd09c946ff2e88846727064ece13f7b9ffdcd6af426e026b77cdadc0ea8a17d2adc95d51fe7db896266509878f7a5d97f6d8656727f901f8de3e4696a133ac29cc25985ba6b451149d694e8acd6ac4f687c28ef75e698ff8d3fa72a1db0f299d6e684f31fb9f462f9946b6bdd6fe8ea17ef7db779e3943beff027842e772e7cc5b29c01951f2c695a9a76436add527ffa17504b070871e5b2737c01000009020000504b0304140008080800d4ad282b00000000000000000000000007000000422e636c6173739d54dd4e134114fea6ddd2525b29c87f0b0e8ada1f290882220514880949c50b080972c3b63b85e2b24bb60ba18931be030f203131dc780189881183f7be82af42c433dbd216f58aa6bb737ebff39d3333fbf3f7b753002378cac0a6bc600ca175755bedd75563b5ff65665d646d2fdc0c0dcfa6666744d6d484959401142e9f5937659f939091828f842c836b798a048da12e9537f2f6048327ba3c155b647047638b015c47c80f058d015c43a01e2edc082008af945a189aa3b17495c2bc6de58dd53119d0e6a780f64b044b5e2f3a1de879aa2a02e892f02e7493960b8097b41ed2a6bdb8cd9098133b3617bad81086cdf306d7545be5b9bcd0359e2f70c3b4b9ca0b0e70d2873b0c2dd17ff994dab8e7472fa20ca9992a84668a12c89aba2db830ccadd5359e29da64d545cee6b6c92da16ab535e2721011c9f23ec3e415b0ec35225e814b5e1e51b1608b0d2f0618ea55cb528b5973b3c810af6daab4cf63b3ff31cdca4e0731e4c7033c943d37f811c608c3c08295179aa4a039c782e72c7383ba32b6749d9b16171b9b76b166b644ec31c3f855266570d36143104f1882d3a651b055c35e54f52dc1a04c537532cfdb6af6f50b757341cde8a4fbe7cd2d2b2b9ee775811e1aad42e7534127ea40a71c29d25cf0915e5fa3cb2da023e9c8742069ad231ff54cef71d2c26477d1da103f46533c7184e6b8fb08ad87903f9a2fdaca81a3e5c02e16ff8ce68f08b8e57aba473724bd0f5ffc0b3ad28903276982de7eb81b9533285ea7029d850a8ce2c0f4c96c7a5a8742be9ddd54f8425556861a71fef6dd6e2abe44aa6785c8843f95d9042b6c7ec1e3b47f40b46fd2738ba5ab80837be03578a19e3d84aa68fb78e338a5e195222d14f11ec113f42e35dd3d46ec87d3984cd63c1fcaf684633f46df78d519b970f64b67e4bb6feea2689f3bf215c34e85882c7082f052df311ed50ea8039e330c7bbadbce1061e774e95c5ef90f3b3b45f7bddce820dc248162fe1a7ba9f4a82c7d5801a5d936ca6f0eafe427cbf91dff696aec723205b69338e930f0fc01504b0708c9717be2f502000047050000504b0304140008080800d4ad282b00000000000000000000000007000000432e636c617373458ebb0ac2401045efc61825be059b74763ec074368aa04141b13260bfe81256e2aec48df85b5682851fe04789a3820ecceb72e7308fe7ed0ea08f1a030b72600cde8e9fb81f7315f9ab5419b917d3f3461c8cd42a870c436d3c99ff94dedb4ca7827291c53708e20ca59266c4d0682dffbcd024524583f6ba08170517368a0ca540aba3e1caac799c12c70ef4969a1bea34d988998c059ab0c84b607870405fa24c9b853c4dec8da25a21a54e9a45dde974af285dbecfa0faf1665f504b0708cf75737cbc000000eb000000504b01021400140008080800d4ad282b2bc2bf352a000000280000001400040000000000000000000000000000004d4554412d494e462f4d414e49464553542e4d46feca0000504b01021400140008080800d4ad282b71e5b2737c01000009020000070000000000000000000000000070000000412e636c617373504b01021400140008080800d4ad282bc9717be2f502000047050000070000000000000000000000000021020000422e636c617373504b01021400140008080800d4ad282bcf75737cbc000000eb00000007000000000000000000000000004b050000432e636c617373504b05060000000004000400e50000003c0600000000");
+        byte[] avmTransformedHelloWorldCode =
+                ByteUtil.hexStringToBytes(
+                        "504b0304140008080800d4ad282b000000000000000000000000140004004d4554412d494e462f4d414e49464553542e4d46feca0000f34dcccb4c4b2d2ed10d4b2d2acecccfb35230d433e0e5f24dccccd375ce492c2eb65270e4e5e2e50200504b07082bc2bf352a00000028000000504b0304140008080800d4ad282b00000000000000000000000007000000412e636c61737365905d4f135110869fd342cf765d28b4a0f8ddfab94b89bdf306636235c628c68b1a087275ba6ceac26117ca42c24ff15fe80d366abc35f13f699cb398187592397366de77e69d73befffcf415b8cf8a423dd228c5dc8e39363d6bb251efd57027890b4d55d17896589b6fe463bb7dcf11842e5e0da375455062ed12ec78788a5973bcd7ebdb3cde8ddf9a34d3f80abd3f4eb3c2668ac570ed8fc6a090f268355a0f0898f139c7ac626a4fba2484d1565f94fa9aa60c1825c51353988005e61d7151517b906669f150311d6ef5dd8c0b2cf9b4b8285d43c54218fd2f1570992b8e74f5afc79ea19aeb0aefd09c946ff2e88846727064ece13f7b9ffdcd6af426e026b77cdadc0ea8a17d2adc95d51fe7db896266509878f7a5d97f6d8656727f901f8de3e4696a133ac29cc25985ba6b451149d694e8acd6ac4f687c28ef75e698ff8d3fa72a1db0f299d6e684f31fb9f462f9946b6bdd6fe8ea17ef7db779e3943beff027842e772e7cc5b29c01951f2c695a9a76436add527ffa17504b070871e5b2737c01000009020000504b0304140008080800d4ad282b00000000000000000000000007000000422e636c6173739d54dd4e134114fea6ddd2525b29c87f0b0e8ada1f290882220514880949c50b080972c3b63b85e2b24bb60ba18931be030f203131dc780189881183f7be82af42c433dbd216f58aa6bb737ebff39d3333fbf3f7b753002378cac0a6bc600ca175755bedd75563b5ff65665d646d2fdc0c0dcfa6666744d6d484959401142e9f5937659f939091828f842c836b798a048da12e9537f2f6048327ba3c155b647047638b015c47c80f058d015c43a01e2edc082008af945a189aa3b17495c2bc6de58dd53119d0e6a780f64b044b5e2f3a1de879aa2a02e892f02e7493960b8097b41ed2a6bdb8cd9098133b3617bad81086cdf306d7545be5b9bcd0359e2f70c3b4b9ca0b0e70d2873b0c2dd17ff994dab8e7472fa20ca9992a84668a12c89aba2db830ccadd5359e29da64d545cee6b6c92da16ab535e2721011c9f23ec3e415b0ec35225e814b5e1e51b1608b0d2f0618ea55cb528b5973b3c810af6daab4cf63b3ff31cdca4e0731e4c7033c943d37f811c608c3c08295179aa4a039c782e72c7383ba32b6749d9b16171b9b76b166b644ec31c3f855266570d36143104f1882d3a651b055c35e54f52dc1a04c537532cfdb6af6f50b757341cde8a4fbe7cd2d2b2b9ee775811e1aad42e7534127ea40a71c29d25cf0915e5fa3cb2da023e9c8742069ad231ff54cef71d2c26477d1da103f46533c7184e6b8fb08ad87903f9a2fdaca81a3e5c02e16ff8ce68f08b8e57aba473724bd0f5ffc0b3ad28903276982de7eb81b9533285ea7029d850a8ce2c0f4c96c7a5a8742be9ddd54f8425556861a71fef6dd6e2abe44aa6785c8843f95d9042b6c7ec1e3b47f40b46fd2738ba5ab80837be03578a19e3d84aa68fb78e338a5e195222d14f11ec113f42e35dd3d46ec87d3984cd63c1fcaf684633f46df78d519b970f64b67e4bb6feea2689f3bf215c34e85882c7082f052df311ed50ea8039e330c7bbadbce1061e774e95c5ef90f3b3b45f7bddce820dc248162fe1a7ba9f4a82c7d5801a5d936ca6f0eafe427cbf91dff696aec723205b69338e930f0fc01504b0708c9717be2f502000047050000504b0304140008080800d4ad282b00000000000000000000000007000000432e636c617373458ebb0ac2401045efc61825be059b74763ec074368aa04141b13260bfe81256e2aec48df85b5682851fe04789a3820ecceb72e7308fe7ed0ea08f1a030b72600cde8e9fb81f7315f9ab5419b917d3f3461c8cd42a870c436d3c99ff94dedb4ca7827291c53708e20ca59266c4d0682dffbcd024524583f6ba08170517368a0ca540aba3e1caac799c12c70ef4969a1bea34d988998c059ab0c84b607870405fa24c9b853c4dec8da25a21a54e9a45dde974af285dbecfa0faf1665f504b0708cf75737cbc000000eb000000504b01021400140008080800d4ad282b2bc2bf352a000000280000001400040000000000000000000000000000004d4554412d494e462f4d414e49464553542e4d46feca0000504b01021400140008080800d4ad282b71e5b2737c01000009020000070000000000000000000000000070000000412e636c617373504b01021400140008080800d4ad282bc9717be2f502000047050000070000000000000000000000000021020000422e636c617373504b01021400140008080800d4ad282bcf75737cbc000000eb00000007000000000000000000000000004b050000432e636c617373504b05060000000004000400e50000003c0600000000");
+
+        // create a slow / fast block distinction
+        // deploy contracts on different VMs for the two chains
+        deployOnAVM = deployAVMContract(sender, avmHelloWorldCode);
+        System.out.println("AVM tx: " + deployOnAVM.getTransactionHash());
+        fastBlock =
+                sourceChain.createNewBlockInternal(
+                                sourceChain.getBestBlock(),
+                                Arrays.asList(deployOnAVM),
+                                true,
+                                time / 10_000L)
+                        .block;
+
+        deployOnFVM = deployFVMContract(sender, avmHelloWorldCode);
+        System.out.println("FVM tx: " + deployOnFVM.getTransactionHash());
+        slowBlock =
+                new AionBlock(
+                        sourceChain.createNewBlockInternal(
+                                        sourceChain.getBestBlock(),
+                                        Arrays.asList(deployOnFVM),
+                                        true,
+                                        time / 10_000L)
+                                .block);
+
+        slowBlock.getHeader().setTimestamp(time / 10_000L + 100);
+        time += 100;
+
+        // sourceChain imports only fast block
+        connectResult = sourceChain.tryToConnectAndFetchSummary(fastBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+
+        AionAddress contract = receipt.getTransaction().getContractAddress();
+
+        // ensuring that the same code was given to the FVM transaction
+        assertThat(sourceChain.getRepository().getCode(contract))
+                .isEqualTo(avmTransformedHelloWorldCode);
+        System.out.println(
+                "Code Hash: "
+                        + Hex.toHexString(
+                                HashUtil.h256(sourceChain.getRepository().getCode(contract))));
+
+        // testChain imports both blocks
+        connectResult = testChain.tryToConnectAndFetchSummary(fastBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+        assertThat(receipt.getTransaction().getContractAddress()).isEqualTo(contract);
+
+        connectResult = testChain.tryToConnectAndFetchSummary(slowBlock, time, true);
+        result = connectResult.getLeft();
+        receipt = connectResult.getRight().getReceipts().get(0);
+
+        assertThat(result).isEqualTo(ImportResult.IMPORTED_NOT_BEST);
+        assertThat(receipt.isSuccessful()).isTrue();
+        assertThat(receipt.getTransaction().getContractAddress()).isEqualTo(contract);
+
+        // ****** check that the correct contract details are kept ******
+
+        // TODO
+        //        // check that main chain is correct
+        //
+        // assertThat(sourceChain.getRepository().getVMUsed(contract)).isEqualTo(InternalVmType.AVM);
+        //
+        // assertThat(testChain.getRepository().getVMUsed(contract)).isEqualTo(InternalVmType.AVM);
+
+        // check information details
+        // the fast check database returns the correct VM type for each contract instance
+        byte[] codeHashAVM = sourceChain.getRepository().getAccountState(contract).getCodeHash();
+        testChain.getRepository().setRoot(slowBlock.getStateRoot());
+        byte[] codeHashFVM = testChain.getRepository().getAccountState(contract).getCodeHash();
+        testChain.getRepository().setRoot(slowBlock.getStateRoot());
+
+        ContractInformation infoSingleImport =
+                sourceChain.getRepository().getIndexedContractInformation(contract);
+        System.out.println("without side chain:" + infoSingleImport);
+
+        assertThat(infoSingleImport.getVmUsed(codeHashAVM)).isEqualTo(InternalVmType.AVM);
+        assertThat(infoSingleImport.getInceptionBlocks(codeHashAVM))
+                .isEqualTo(Set.of(fastBlock.getHashWrapper()));
+        assertThat(infoSingleImport.getVmUsed(codeHashFVM)).isEqualTo(InternalVmType.UNKNOWN);
+        assertThat(infoSingleImport.getInceptionBlocks(codeHashFVM)).isEmpty();
+
+        ContractInformation infoMultiImport =
+                testChain.getRepository().getIndexedContractInformation(contract);
+        System.out.println("with side chain:" + infoMultiImport);
+
+        assertThat(infoMultiImport.getVmUsed(codeHashAVM)).isEqualTo(InternalVmType.AVM);
+        assertThat(infoMultiImport.getInceptionBlocks(codeHashAVM))
+                .isEqualTo(Set.of(fastBlock.getHashWrapper()));
+        assertThat(infoMultiImport.getVmUsed(codeHashFVM)).isEqualTo(InternalVmType.FVM);
+        assertThat(infoMultiImport.getInceptionBlocks(codeHashFVM))
+                .isEqualTo(Set.of(slowBlock.getHashWrapper()));
+    }
+
     /**
      * Ensures that if a side-chain block is imported after a main-chain block creating the same
      * contract address X but using different VMs, then each chain will operate on the correct VM.
@@ -912,6 +1057,38 @@ public class BlockchainForkingTest {
                         null,
                         BigInteger.ZERO.toByteArray(),
                         helloAVM,
+                        5_000_000L,
+                        10_123_456_789L,
+                        TransactionTypes.AVM_CREATE_CODE);
+
+        transaction.sign(sender);
+
+        return transaction;
+    }
+
+    private AionTransaction deployFVMContract(ECKey sender, byte[] code) {
+        AionTransaction contractDeploymentTx =
+                new AionTransaction(
+                        BigInteger.ZERO.toByteArray(),
+                        null,
+                        BigInteger.ZERO.toByteArray(),
+                        code,
+                        5_000_000L,
+                        10_123_456_789L);
+
+        contractDeploymentTx.sign(sender);
+
+        return contractDeploymentTx;
+    }
+
+    private AionTransaction deployAVMContract(ECKey sender, byte[] code) {
+        AionTransaction transaction =
+                new AionTransaction(
+                        BigInteger.ZERO.toByteArray(),
+                        new AionAddress(sender.getAddress()),
+                        null,
+                        BigInteger.ZERO.toByteArray(),
+                        code,
                         5_000_000L,
                         10_123_456_789L,
                         TransactionTypes.AVM_CREATE_CODE);
