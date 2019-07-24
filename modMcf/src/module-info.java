@@ -13,6 +13,7 @@ module aion.mcf {
     requires aion.types;
     requires aion.base;
     requires aion.fastvm;
+    requires com.github.benmanes.caffeine;
 
     exports org.aion.mcf.account;
     exports org.aion.mcf.blockchain;
