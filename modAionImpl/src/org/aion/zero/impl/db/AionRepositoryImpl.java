@@ -101,8 +101,7 @@ public class AionRepositoryImpl
             this.pendingStore = new PendingBlockStore(pendingStoreProperties);
             this.contractInfoSource =
                     new DataSource<>(contractIndexDatabase, ContractInformation.RLP_SERIALIZER)
-                            .withCache(100, Type.Window_TinyLfu)
-                            .withStatistics()
+                            .withCache(10, Type.LRU)
                             .buildObjectSource();
 
             // Setup world trie.
