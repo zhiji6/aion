@@ -90,6 +90,7 @@ import org.aion.zero.types.A0BlockHeader;
 import org.aion.zero.types.AionTxExecSummary;
 import org.aion.zero.types.AionTxReceipt;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,6 +113,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
 
     private static final Logger LOG = LoggerFactory.getLogger(LogEnum.CONS.name());
     private static final Logger TX_LOG = LoggerFactory.getLogger(LogEnum.TX.name());
+    private static final Logger SYNC_LOG = LoggerFactory.getLogger(LogEnum.SYNC.name());
     private static final int THOUSAND_MS = 1000;
     private static final int DIFFICULTY_BYTES = 16;
     private static final Logger LOGGER_VM = AionLoggerFactory.getLogger(LogEnum.VM.toString());
@@ -772,6 +774,54 @@ public class AionBlockchainImpl implements IAionBlockchain {
             System.exit(SystemExitCodes.NORMAL);
         }
         return tryToConnectInternal(block, System.currentTimeMillis() / THOUSAND_MS);
+    }
+
+    public synchronized Triple<Long, Set<ByteArrayWrapper>, ImportResult> tryToConnect(
+            final List<Block> blockRange) {
+        ImportResult importResult = null;
+        Set<ByteArrayWrapper> imported = new HashSet<>();
+        for (Block block : blockRange) {
+            if (bestBlock.getNumber() == shutdownHook) {
+                LOG.info(
+                        "Shutting down and dumping heap as indicated by CLI request since block number {} was reached.",
+                        shutdownHook);
+
+                try {
+                    HeapDumper.dumpHeap(
+                            new File(System.currentTimeMillis() + "-heap-report.hprof")
+                                    .getAbsolutePath(),
+                            true);
+                } catch (Exception e) {
+                    LOG.error("Unable to dump heap due to exception:", e);
+                }
+
+                // requested shutdown
+                System.exit(SystemExitCodes.NORMAL);
+            }
+
+            long t1 = System.currentTimeMillis();
+            importResult = tryToConnectInternal(block, System.currentTimeMillis() / THOUSAND_MS);
+            long t2 = System.currentTimeMillis();
+            // not printing this message when the state is in fast mode with no parent result
+            // a different message will be printed to indicate the storage of blocks
+            if (SYNC_LOG.isDebugEnabled()) {
+                SYNC_LOG.debug(
+                        "<import-status: hash = {}, number = {}, txs = {}, result = {}, time elapsed = {} ms>",
+                        block.getShortHash(),
+                        block.getNumber(),
+                        block.getTransactionsList().size(),
+                        importResult,
+                        t2 - t1);
+            }
+
+            // stop at invalid blocks
+            if (!importResult.isStored()) {
+                return Triple.of(bestBlock.getNumber(), imported, importResult);
+            } else {
+                imported.add(block.getHashWrapper());
+            }
+        }
+        return Triple.of(bestBlock.getNumber(), imported, importResult);
     }
 
     public synchronized void compactState() {

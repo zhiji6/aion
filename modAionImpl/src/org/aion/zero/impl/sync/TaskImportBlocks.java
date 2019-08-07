@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingQueue;
@@ -22,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import org.aion.mcf.blockchain.Block;
 import org.aion.mcf.core.ImportResult;
 import org.aion.p2p.P2pConstant;
@@ -32,6 +32,7 @@ import org.aion.zero.impl.SystemExitCodes;
 import org.aion.zero.impl.db.AionBlockStore;
 import org.aion.zero.impl.sync.PeerState.Mode;
 import org.aion.zero.impl.sync.statistics.BlockType;
+import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.Logger;
 
 /**
@@ -159,9 +160,7 @@ final class TaskImportBlocks implements Runnable {
      */
     @VisibleForTesting
     static List<Block> filterBatch(
-            List<Block> blocks,
-            AionBlockchainImpl chain,
-            Map<ByteArrayWrapper, Object> imported) {
+            List<Block> blocks, AionBlockchainImpl chain, Map<ByteArrayWrapper, Object> imported) {
         if (chain.hasPruneRestriction()) {
             // filter out restricted blocks if prune restrictions enabled
             return blocks.stream()
@@ -250,122 +249,151 @@ final class TaskImportBlocks implements Runnable {
         }
 
         // remembering imported range
-        long first = -1L, last = -1L;
-        ImportResult importResult;
+        Block firstInBatch = batch.get(0);
+        long first = firstInBatch.getNumber(), last = -1L, currentBest;
+        ImportResult importResult = null;
 
-        for (Block b : batch) {
-            try {
-                importResult = importBlock(b, displayId, givenState);
+        try {
+            long t1 = System.currentTimeMillis();
+            Triple<Long, Set<ByteArrayWrapper>, ImportResult> resultTriple =
+                    this.chain.tryToConnect(batch);
+            long t2 = System.currentTimeMillis();
 
-                if (importResult.isStored()) {
-                    importedBlockHashes.put(ByteArrayWrapper.wrap(b.getHash()), true);
-                    this.syncStats.updatePeerBlocks(displayId, 1, BlockType.IMPORTED);
+            currentBest = resultTriple.getLeft();
+            Set<ByteArrayWrapper> importedHashes = resultTriple.getMiddle();
+            importResult = resultTriple.getRight();
 
-                    if (last <= b.getNumber()) {
-                        last = b.getNumber() + 1;
-                    }
+            String info;
+            int count = importedHashes.size();
+            if (currentBest >= first) {
+                last = currentBest + 1;
+                importedHashes.stream().forEach(v -> importedBlockHashes.put(v, true));
+                syncStats.updatePeerBlocks(displayId, count, BlockType.IMPORTED);
+
+                if (currentBest == first) {
+                    info = "1 block";
+                } else {
+                    info = count + " blocks";
                 }
-            } catch (Exception e) {
-                log.error("<import-block throw> ", e);
-
-                if (e.getMessage() != null && e.getMessage().contains("No space left on device")) {
-                    log.error("Shutdown due to lack of disk space.", e);
-                    System.exit(SystemExitCodes.OUT_OF_DISK_SPACE);
-                }
-                break;
+            } else {
+                info = null; // to avoid printing
             }
 
-            // decide whether to change mode based on the first
-            if (b == batch.get(0)) {
-                first = b.getNumber();
-                Mode mode = givenState.getMode();
-
-                // if any block results in NO_PARENT, all subsequent blocks will too
-                if (importResult == ImportResult.NO_PARENT) {
-                    executors.submit(
-                            new TaskStorePendingBlocks(chain, batch, displayId, syncStats, log));
-
-                    if (log.isDebugEnabled()) {
-                        log.debug(
-                                "Stopped importing batch due to NO_PARENT result. "
-                                        + "Batch of {} blocks starting at hash = {}, number = {} from node = {} delegated to storage.",
-                                batch.size(),
-                                b.getShortHash(),
-                                b.getNumber(),
-                                displayId);
-                    } else {
-                        // message used instead of import NO_PARENT ones
-                        if (state.isInFastMode()) {
-                            log.info(
-                                    "<import-status: STORED {} blocks from node = {}, starting with hash = {}, number = {}, txs = {}>",
-                                    batch.size(),
-                                    displayId,
-                                    b.getShortHash(),
-                                    b.getNumber(),
-                                    b.getTransactionsList().size());
-                        }
-                    }
-
-                    switch (mode) {
-                        case FORWARD:
-                            {
-                                // switch to backward mode
-                                state.setMode(BACKWARD);
-                                state.setBase(b.getNumber());
-                                break;
-                            }
-                        case NORMAL:
-                            {
-                                // switch to backward mode
-                                state.setMode(BACKWARD);
-                                state.setBase(b.getNumber());
-                                break;
-                            }
-                        case BACKWARD:
-                            {
-                                // update base
-                                state.setBase(b.getNumber());
-                                break;
-                            }
-                        case LIGHTNING:
-                            {
-                                state.setBase(b.getNumber() + batch.size());
-                                break;
-                            }
-                        case THUNDER:
-                            break;
-                    }
-                    // exit loop after NO_PARENT result
-                    break;
-                } else if (importResult.isStored()) {
-                    // assuming the remaining blocks will be imported. if not, the state
-                    // and base will be corrected by the next cycle
-                    long lastBlock = batch.get(batch.size() - 1).getNumber();
-
-                    switch (mode) {
-                        case BACKWARD:
-                            // we found the fork point
-                            state.setMode(FORWARD);
-                            state.setBase(lastBlock);
-                            break;
-                        case FORWARD:
-                            state = forwardModeUpdate(state, lastBlock, importResult);
-                            break;
-                        case LIGHTNING:
-                        case THUNDER:
-                            state =
-                                    attemptLightningJump(
-                                            getBestBlockNumber(),
-                                            state,
-                                            peerStates.values(),
-                                            baseList,
-                                            chain);
-                            break;
-                        case NORMAL:
-                        default:
-                            break;
-                    }
+            if (info != null) {
+                if (log.isDebugEnabled()) {
+                    // printing sync mode only when debug is enabled
+                    log.debug(
+                            "<import-status: node = {}, sync mode = {}, imported = {}, from = {}, to = {}, time elapsed = {} ms, td = {}>",
+                            displayId,
+                            (state != null ? state.getMode() : NORMAL),
+                            info,
+                            firstInBatch.getNumber(),
+                            batch.get(count - 1).getNumber(),
+                            t2 - t1,
+                            chain.getTotalDifficulty());
+                } else {
+                    log.info(
+                            "<import-status: node = {}, imported = {}, from = {}, to = {}, time elapsed = {} ms>",
+                            displayId,
+                            info,
+                            firstInBatch.getNumber(),
+                            batch.get(count - 1).getNumber(),
+                            t2 - t1);
                 }
+            }
+        } catch (Exception e) {
+            log.error("<import-block throw> ", e);
+
+            if (e.getMessage() != null && e.getMessage().contains("No space left on device")) {
+                log.error("Shutdown due to lack of disk space.", e);
+                System.exit(SystemExitCodes.OUT_OF_DISK_SPACE);
+            }
+        }
+
+        // decide whether to change mode
+        Mode mode = givenState.getMode();
+
+        // if any block results in NO_PARENT, all subsequent blocks will too
+        if (importResult == ImportResult.NO_PARENT) {
+            executors.submit(new TaskStorePendingBlocks(chain, batch, displayId, syncStats, log));
+
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Stopped importing batch due to NO_PARENT result. "
+                                + "Batch of {} blocks starting at hash = {}, number = {} from node = {} delegated to storage.",
+                        batch.size(),
+                        firstInBatch.getShortHash(),
+                        firstInBatch.getNumber(),
+                        displayId);
+            } else {
+                // message used instead of import NO_PARENT ones
+                if (state.isInFastMode()) {
+                    log.info(
+                            "<import-status: STORED {} blocks from node = {}, starting with hash = {}, number = {}, txs = {}>",
+                            batch.size(),
+                            displayId,
+                            firstInBatch.getShortHash(),
+                            firstInBatch.getNumber(),
+                            firstInBatch.getTransactionsList().size());
+                }
+            }
+
+            switch (mode) {
+                case FORWARD:
+                    {
+                        // switch to backward mode
+                        state.setMode(BACKWARD);
+                        state.setBase(firstInBatch.getNumber());
+                        break;
+                    }
+                case NORMAL:
+                    {
+                        // switch to backward mode
+                        state.setMode(BACKWARD);
+                        state.setBase(firstInBatch.getNumber());
+                        break;
+                    }
+                case BACKWARD:
+                    {
+                        // update base
+                        state.setBase(firstInBatch.getNumber());
+                        break;
+                    }
+                case LIGHTNING:
+                    {
+                        state.setBase(firstInBatch.getNumber() + batch.size());
+                        break;
+                    }
+                case THUNDER:
+                    break;
+            }
+        } else if (importResult.isStored()) {
+            // assuming the remaining blocks will be imported. if not, the state
+            // and base will be corrected by the next cycle
+            long lastBlock = batch.get(batch.size() - 1).getNumber();
+
+            switch (mode) {
+                case BACKWARD:
+                    // we found the fork point
+                    state.setMode(FORWARD);
+                    state.setBase(lastBlock);
+                    break;
+                case FORWARD:
+                    state = forwardModeUpdate(state, lastBlock, importResult);
+                    break;
+                case LIGHTNING:
+                case THUNDER:
+                    state =
+                            attemptLightningJump(
+                                    getBestBlockNumber(),
+                                    state,
+                                    peerStates.values(),
+                                    baseList,
+                                    chain);
+                    break;
+                case NORMAL:
+                default:
+                    break;
             }
         }
 
@@ -535,7 +563,8 @@ final class TaskImportBlocks implements Runnable {
      *     old blocks, for example when blocks are imported in {@link PeerState.Mode#FORWARD} mode.
      */
     static boolean isAlreadyStored(AionBlockStore store, Block block) {
-        return store.getMaxNumber() >= block.getNumber() && store.isBlockStored(block.getHash(), block.getNumber());
+        return store.getMaxNumber() >= block.getNumber()
+                && store.isBlockStored(block.getHash(), block.getNumber());
     }
 
     private ImportResult importBlock(Block b, String displayId, PeerState state) {
@@ -624,10 +653,11 @@ final class TaskImportBlocks implements Runnable {
      *
      * @return the total number of imported blocks from all iterations
      */
-    private int importFromStorage(PeerState state, long first, long last) {
+    private int importFromStorage(PeerState state, final long first, long last) {
         ImportResult importResult = ImportResult.NO_PARENT;
         int imported = 0, batch;
         long level = first;
+        long currentBest, firstInBatch;
 
         while (level <= last) {
             // get blocks stored for level
@@ -675,32 +705,63 @@ final class TaskImportBlocks implements Runnable {
                     continue;
                 }
 
-                for (Block b : batchFromDisk) {
-                    try {
-                        importResult = importBlock(b, "STORAGE", state);
+                try {
 
-                        if (importResult.isStored()) {
-                            importedBlockHashes.put(ByteArrayWrapper.wrap(b.getHash()), true);
+                    long t1 = System.currentTimeMillis();
+                    Triple<Long, Set<ByteArrayWrapper>, ImportResult> resultTriple =
+                            this.chain.tryToConnect(batchFromDisk);
+                    long t2 = System.currentTimeMillis();
 
-                            batch++;
+                    currentBest = resultTriple.getLeft();
+                    firstInBatch = batchFromDisk.get(0).getNumber();
+                    Set<ByteArrayWrapper> importedHashes = resultTriple.getMiddle();
+                    importResult = resultTriple.getRight();
 
-                            if (last == b.getNumber()) {
-                                // can try importing more
-                                last = b.getNumber() + 1;
-                            }
+                    String info;
+                    int count = importedHashes.size();
+                    if (currentBest >= firstInBatch) {
+                        last = currentBest + 1;
+                        importedHashes.stream().forEach(v -> importedBlockHashes.put(v, true));
+
+                        batch += count;
+
+                        if (currentBest == firstInBatch) {
+                            info = "1 block";
                         } else {
-                            // do not delete queue from storage
-                            importedQueues.remove(entry.getKey());
-                            // stop importing this queue
-                            break;
+                            info = count + " blocks";
                         }
-                    } catch (Exception e) {
-                        log.error("<import-block throw> ", e);
-                        if (e.getMessage() != null
-                                && e.getMessage().contains("No space left on device")) {
-                            log.error("Shutdown due to lack of disk space.", e);
-                            System.exit(SystemExitCodes.OUT_OF_DISK_SPACE);
+                    } else {
+                        info = null; // to avoid printing
+                        // do not delete queue from storage
+                        importedQueues.remove(entry.getKey());
+                    }
+
+                    if (info != null) {
+                        if (log.isDebugEnabled()) {
+                            // printing sync mode only when debug is enabled
+                            log.debug(
+                                    "<import-status: STORAGE, sync mode = {}, imported = {}, from = {}, to = {}, time elapsed = {} ms, td = {}>",
+                                    (state != null ? state.getMode() : NORMAL),
+                                    info,
+                                    firstInBatch,
+                                    batchFromDisk.get(count - 1).getNumber(),
+                                    t2 - t1,
+                                    chain.getTotalDifficulty());
+                        } else {
+                            log.info(
+                                    "<import-status: STORAGE, imported = {}, from = {}, to = {}, time elapsed = {} ms>",
+                                    info,
+                                    firstInBatch,
+                                    batchFromDisk.get(count - 1).getNumber(),
+                                    t2 - t1);
                         }
+                    }
+                } catch (Exception e) {
+                    log.error("<import-block throw> ", e);
+                    if (e.getMessage() != null
+                            && e.getMessage().contains("No space left on device")) {
+                        log.error("Shutdown due to lack of disk space.", e);
+                        System.exit(SystemExitCodes.OUT_OF_DISK_SPACE);
                     }
                 }
 
