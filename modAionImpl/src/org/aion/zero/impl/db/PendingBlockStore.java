@@ -95,6 +95,8 @@ public class PendingBlockStore implements Flushable, Closeable {
 
     private static final int FORWARD_SKIP = STEP_COUNT * LARGE_REQUEST_SIZE;
 
+    private SortedSet<Long> knownLevels;
+
     /**
      * Constructor. Initializes the databases used for storage. If the database configuration used
      * requires persistence, the constructor ensures the path can be accessed or throws an exception
@@ -139,6 +141,15 @@ public class PendingBlockStore implements Flushable, Closeable {
                         .withCache(20, Type.Window_TinyLfu)
                         .withStatistics()
                         .buildObjectSource();
+
+        knownLevels = new TreeSet<>();
+        Iterator<byte[]> iterator = levelDatabase.keys();
+        byte[] currentKey;
+        while (iterator.hasNext()) {
+            currentKey = iterator.next();
+            knownLevels.add(ByteUtil.byteArrayToLong(currentKey));
+        }
+        System.out.println("CACHE: " + knownLevels.size() + " level entries were loaded.");
 
         // create the queue source
         props.setProperty(Props.DB_NAME, QUEUE_DB_NAME);
@@ -236,8 +247,11 @@ public class PendingBlockStore implements Flushable, Closeable {
             };
 
     private List<byte[]> getFromLevelSource(long key, byte[] levelKey) {
-        // TODO: check for height
-        return levelSource.get(levelKey);
+        if (!knownLevels.contains(key)) {
+            return null;
+        } else {
+            return levelSource.get(levelKey);
+        }
     }
 
     /**
@@ -318,6 +332,7 @@ public class PendingBlockStore implements Flushable, Closeable {
 
         levelData.add(currentQueueHash);
         levelSource.putToBatch(levelKey, levelData);
+        knownLevels.add(first.getNumber());
 
         // index block with queue hash
         indexSource.putToBatch(first.getHash(), currentQueueHash);
@@ -501,9 +516,11 @@ public class PendingBlockStore implements Flushable, Closeable {
                 if (updatedLevelData.isEmpty()) {
                     // delete level
                     levelSource.deleteInBatch(levelKey);
+                    knownLevels.remove(level);
                 } else {
                     // update level
                     levelSource.putToBatch(levelKey, updatedLevelData);
+                    knownLevels.add(level);
                 }
             }
 
@@ -612,6 +629,8 @@ public class PendingBlockStore implements Flushable, Closeable {
     @Override
     public void close() {
         databaseLock.writeLock().lock();
+
+        System.out.println("CACHE: " + knownLevels.size() + " level entries remain at shutdown.");
 
         try {
             try {
