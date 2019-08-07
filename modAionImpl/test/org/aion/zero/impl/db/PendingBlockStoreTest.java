@@ -80,16 +80,6 @@ public class PendingBlockStoreTest {
         List<Block> blocks = TestResources.consecutiveBlocks(6);
         assertThat(blocks.size()).isEqualTo(6);
 
-        // test with valid block
-        Block block = blocks.remove(0);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=1 #level=1 #queue=1 #status=1
-        assertThat(pb.getIndexSize()).isEqualTo(1);
-        assertThat(pb.getLevelSize()).isEqualTo(1);
-        assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-        assertThat(pb.getStatusItem(block.getHash())).isNotNull();
-
         // test with valid range
         List<Block> range = new ArrayList<>();
         int rangeSize = 4;
@@ -97,22 +87,10 @@ public class PendingBlockStoreTest {
             range.add(blocks.remove(0));
         }
         assertThat(pb.addBlockRange(range)).isEqualTo(rangeSize);
-        // #index=5 #level=2 #queue=2 #status=1
-        assertThat(pb.getIndexSize()).isEqualTo(5);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-
-        // test with valid block expanding range
-        block = blocks.remove(0);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=6 #level=2 #queue=2 #status=2
-        assertThat(pb.getIndexSize()).isEqualTo(6);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(2);
-        assertThat(pb.getStatusItem(block.getHash())).isNull();
-        assertThat(pb.getStatusItem(range.get(0).getHash())).isNotNull();
+        // #index=4 #level=1 #queue=1
+        assertThat(pb.getIndexSize()).isEqualTo(4);
+        assertThat(pb.getLevelSize()).isEqualTo(1);
+        assertThat(pb.getQueueSize()).isEqualTo(1);
 
         // flush and close
         pb.flush();
@@ -127,109 +105,13 @@ public class PendingBlockStoreTest {
         }
         assertThat(pb.isOpen()).isTrue();
 
-        assertThat(pb.getIndexSize()).isEqualTo(6);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
+        assertThat(pb.getIndexSize()).isEqualTo(4);
+        assertThat(pb.getLevelSize()).isEqualTo(1);
+        assertThat(pb.getQueueSize()).isEqualTo(1);
 
         pb.close();
 
         assertThat(deleteRecursively(dir)).isTrue();
-    }
-
-    @Test
-    public void testAddStatusBlock() {
-        Properties props = new Properties();
-        props.setProperty(Props.DB_TYPE, DBVendor.MOCKDB.toValue());
-
-        PendingBlockStore pb = null;
-        try {
-            pb = new PendingBlockStore(props);
-        } catch (InvalidFilePathException e) {
-            e.printStackTrace();
-        }
-        assertThat(pb.isOpen()).isTrue();
-
-        List<Block> blocks = TestResources.consecutiveBlocks(4);
-        assertThat(blocks.size()).isEqualTo(4);
-
-        // test with null input
-        assertThat(pb.addStatusBlock(null)).isFalse();
-        // #index=0 #level=0 #queue=0 #status=0
-        assertThat(pb.getIndexSize()).isEqualTo(0);
-        assertThat(pb.getLevelSize()).isEqualTo(0);
-        assertThat(pb.getQueueSize()).isEqualTo(0);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
-        assertThat(pb.getStatusItem(null)).isNull();
-
-        // test with valid block
-        Block block = blocks.get(0);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=1 #level=1 #queue=1 #status=1
-        assertThat(pb.getIndexSize()).isEqualTo(1);
-        assertThat(pb.getLevelSize()).isEqualTo(1);
-        assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-        assertThat(pb.getStatusItem(block.getHash())).isNotNull();
-
-        // test that block does not get added twice
-        assertThat(pb.addStatusBlock(block)).isFalse();
-        // #index=1 #level=1 #queue=1 #status=1
-        assertThat(pb.getIndexSize()).isEqualTo(1);
-        assertThat(pb.getLevelSize()).isEqualTo(1);
-        assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-
-        // expand existing queue
-        block = blocks.get(1);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=2 #level=1 #queue=1 #status=1
-        assertThat(pb.getIndexSize()).isEqualTo(2);
-        assertThat(pb.getLevelSize()).isEqualTo(1);
-        assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-        assertThat(pb.getStatusItem(block.getHash())).isNull();
-
-        // create new queue
-        block = blocks.get(3);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=3 #level=2 #queue=2 #status=2
-        assertThat(pb.getIndexSize()).isEqualTo(3);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(2);
-        assertThat(pb.getStatusItem(block.getHash())).isNotNull();
-
-        // expand previous existing queue
-        block = blocks.get(2);
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        // #index=4 #level=2 #queue=2 #status=2
-        assertThat(pb.getIndexSize()).isEqualTo(4);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(2);
-        assertThat(pb.getStatusItem(block.getHash())).isNull();
-    }
-
-    @Test
-    public void testAddStatusBlock_wException() {
-        Properties props = new Properties();
-        props.setProperty(Props.DB_TYPE, DBVendor.MOCKDB.toValue());
-
-        PendingBlockStore pb = null;
-        try {
-            pb = new PendingBlockStore(props);
-        } catch (InvalidFilePathException e) {
-            e.printStackTrace();
-        }
-        assertThat(pb.isOpen()).isTrue();
-
-        Block block = TestResources.consecutiveBlocks(1).get(0);
-
-        // closing the pending block store to cause exception
-        pb.close();
-
-        assertThat(pb.addStatusBlock(block)).isFalse();
     }
 
     @Test
@@ -251,7 +133,6 @@ public class PendingBlockStoreTest {
         // test with empty list input
         List<Block> input = new ArrayList<>();
         assertThat(pb.addBlockRange(input)).isEqualTo(0); // #index=0 #level=0 #queue=0
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // test with valid range
         int rangeSize = 4;
@@ -263,7 +144,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(rangeSize);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // test that the block range does not get added twice
         assertThat(pb.addBlockRange(input)).isEqualTo(0);
@@ -271,7 +151,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(rangeSize);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // add new queue though expand existing queue is possible
         // this is done for performance when deleting
@@ -284,7 +163,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(rangeSize * 2);
         assertThat(pb.getLevelSize()).isEqualTo(2);
         assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // create new queue
         input.clear();
@@ -297,7 +175,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(rangeSize * 3);
         assertThat(pb.getLevelSize()).isEqualTo(3);
         assertThat(pb.getQueueSize()).isEqualTo(3);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // non-consecutive range -> 2 new queues
         input.clear();
@@ -309,7 +186,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(rangeSize * 4);
         assertThat(pb.getLevelSize()).isEqualTo(5);
         assertThat(pb.getQueueSize()).isEqualTo(5);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
     }
 
     @Test
@@ -381,25 +257,6 @@ public class PendingBlockStoreTest {
         long level = first.getNumber();
         assertThat(pb.loadBlockRange(level - 1)).isEmpty();
         assertThat(pb.loadBlockRange(level + 1)).isEmpty();
-
-        // 5. test after status import with new queue
-        Block status = allBlocks.get(7);
-        assertThat(pb.addStatusBlock(status)).isTrue();
-        actual = pb.loadBlockRange(status.getNumber());
-        assertThat(actual.size()).isEqualTo(1);
-        assertThat(actual.get(ByteArrayWrapper.wrap(status.getHash())).get(0)).isEqualTo(status);
-        level = status.getNumber();
-        assertThat(pb.loadBlockRange(level - 1)).isEmpty();
-        assertThat(pb.loadBlockRange(level + 1)).isEmpty();
-
-        // 6.  test after status import with extended queue
-        status = allBlocks.get(6);
-        assertThat(pb.addStatusBlock(status)).isTrue();
-        assertThat(pb.loadBlockRange(status.getNumber())).isEmpty();
-
-        actual = pb.loadBlockRange(first.getNumber());
-        blocks.add(status);
-        assertThat(actual.get(ByteArrayWrapper.wrap(first.getHash()))).isEqualTo(blocks);
     }
 
     @Test
@@ -450,7 +307,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(7);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // test drop functionality
         Map<ByteArrayWrapper, List<Block>> actual = pb.loadBlockRange(first.getNumber());
@@ -460,7 +316,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(0);
         assertThat(pb.getLevelSize()).isEqualTo(0);
         assertThat(pb.getQueueSize()).isEqualTo(0);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
     }
 
     @Test
@@ -492,7 +347,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(7);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // closing the pending block store to cause exception
         pb.close();
@@ -531,7 +385,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(7);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
 
         // test drop functionality
         Map<ByteArrayWrapper, List<Block>> actual = pb.loadBlockRange(first.getNumber());
@@ -543,53 +396,6 @@ public class PendingBlockStoreTest {
         assertThat(pb.getIndexSize()).isEqualTo(1);
         assertThat(pb.getLevelSize()).isEqualTo(1);
         assertThat(pb.getQueueSize()).isEqualTo(1);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
-    }
-
-    @Test
-    public void testDropPendingQueues_wSubsetOfQueueBlocks() {
-        Properties props = new Properties();
-        props.setProperty(Props.DB_TYPE, DBVendor.MOCKDB.toValue());
-
-        PendingBlockStore pb = null;
-        try {
-            pb = new PendingBlockStore(props);
-        } catch (InvalidFilePathException e) {
-            e.printStackTrace();
-        }
-        assertThat(pb.isOpen()).isTrue();
-
-        // add first queue
-        List<Block> blocks = TestResources.consecutiveBlocks(6);
-        Block first = blocks.get(0);
-        pb.addBlockRange(blocks);
-
-        // add second queue
-        AionBlock altBlock = new AionBlock(first.getEncoded());
-        altBlock.setExtraData("random".getBytes());
-        List<Block> sideChain = new ArrayList<>();
-        sideChain.add(altBlock);
-        pb.addBlockRange(sideChain);
-
-        // check storage updates
-        assertThat(pb.getIndexSize()).isEqualTo(7);
-        assertThat(pb.getLevelSize()).isEqualTo(1);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
-
-        // test drop functionality
-        ByteArrayWrapper queueId = ByteArrayWrapper.wrap(first.getHash());
-        List<ByteArrayWrapper> queues = new ArrayList<>();
-        queues.add(queueId);
-        Map<ByteArrayWrapper, List<Block>> actual = pb.loadBlockRange(first.getNumber());
-        actual.get(queueId).remove(5);
-        pb.dropPendingQueues(first.getNumber(), queues, actual);
-
-        // check storage after drop functionality
-        assertThat(pb.getIndexSize()).isEqualTo(2);
-        assertThat(pb.getLevelSize()).isEqualTo(2);
-        assertThat(pb.getQueueSize()).isEqualTo(2);
-        assertThat(pb.getStatusSize()).isEqualTo(0);
     }
 
     @Test
@@ -607,12 +413,8 @@ public class PendingBlockStoreTest {
 
         Block block = TestResources.consecutiveBlocks(1).get(0);
 
-        // setup: add status
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-
         long current = block.getNumber() + 1; // above last status
-        long knownBest = 0; // not important for this test
+        long knownBest = block.getNumber(); // will define the max status
         long expected = current;
 
         // closing the pending block store to cause exception
@@ -699,74 +501,9 @@ public class PendingBlockStoreTest {
 
         Block block = TestResources.consecutiveBlocks(1).get(0);
 
-        // setup: add status
-        assertThat(pb.addStatusBlock(block)).isTrue();
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-
         long current = block.getNumber() + 1; // above last status
-        long knownBest = 0; // not important for this test
+        long knownBest = block.getNumber(); // will define the max status
         long expected = current;
-        assertThat(pb.nextBase(current, knownBest)).isEqualTo(expected);
-    }
-
-    @Test
-    public void testNextBase_wSuccessfulStatusSearch_wSingleEntry() {
-        Properties props = new Properties();
-        props.setProperty(Props.DB_TYPE, DBVendor.MOCKDB.toValue());
-
-        PendingBlockStore pb = null;
-        try {
-            pb = new PendingBlockStore(props);
-        } catch (InvalidFilePathException e) {
-            e.printStackTrace();
-        }
-        assertThat(pb.isOpen()).isTrue();
-
-        List<Block> blocks = TestResources.consecutiveBlocks(3);
-        assertThat(blocks.size()).isEqualTo(3);
-
-        // setup: add status entries
-        for (Block block : blocks) {
-            assertThat(pb.addStatusBlock(block)).isTrue();
-            // all blocks get added to the same queue
-            assertThat(pb.getStatusSize()).isEqualTo(1);
-        }
-
-        long current = blocks.get(0).getNumber() + 1; // above last status
-        long knownBest = 0; // not important for this test
-        long expected = blocks.get(2).getNumber() + 1;
-        // last value from the status entry will be chosen
-        assertThat(pb.nextBase(current, knownBest)).isEqualTo(expected);
-    }
-
-    @Test
-    public void testNextBase_wSuccessfulStatusSearch_wTwoEntries() {
-        Properties props = new Properties();
-        props.setProperty(Props.DB_TYPE, DBVendor.MOCKDB.toValue());
-
-        PendingBlockStore pb = null;
-        try {
-            pb = new PendingBlockStore(props);
-        } catch (InvalidFilePathException e) {
-            e.printStackTrace();
-        }
-        assertThat(pb.isOpen()).isTrue();
-
-        List<Block> blocks = TestResources.consecutiveBlocks(3);
-
-        // setup: add status entries
-        Block status1 = blocks.get(0);
-        assertThat(pb.addStatusBlock(status1)).isTrue();
-        assertThat(pb.getStatusSize()).isEqualTo(1);
-
-        Block status2 = blocks.get(2);
-        assertThat(pb.addStatusBlock(status2)).isTrue();
-        assertThat(pb.getStatusSize()).isEqualTo(2);
-
-        long current = status1.getNumber() + 1; // above last status
-        long knownBest = 0; // not important for this test
-        long expected = status2.getNumber() + 1;
-        // last value from the second status entry will be chosen
         assertThat(pb.nextBase(current, knownBest)).isEqualTo(expected);
     }
 }
