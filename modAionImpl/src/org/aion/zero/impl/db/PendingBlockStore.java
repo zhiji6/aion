@@ -138,7 +138,7 @@ public class PendingBlockStore implements Flushable, Closeable {
         }
         this.levelSource =
                 new DataSource<>(levelDatabase, HASH_LIST_RLP_SERIALIZER)
-                        .withCache(20, Type.Window_TinyLfu)
+                        .withCache(20, Type.LRU)
                         .withStatistics()
                         .buildObjectSource();
 
@@ -148,6 +148,11 @@ public class PendingBlockStore implements Flushable, Closeable {
         while (iterator.hasNext()) {
             currentKey = iterator.next();
             knownLevels.add(ByteUtil.byteArrayToLong(currentKey));
+        }
+
+        // start from where the previous execution left off
+        if (!knownLevels.isEmpty()) {
+            maxRequest = knownLevels.last();
         }
         System.out.println("CACHE: " + knownLevels.size() + " level entries were loaded.");
 
@@ -159,7 +164,7 @@ public class PendingBlockStore implements Flushable, Closeable {
         }
         this.queueSource =
                 new DataSource<>(queueDatabase, BLOCK_LIST_RLP_SERIALIZER)
-                        .withCache(20, Type.Window_TinyLfu)
+                        .withCache(20, Type.LRU)
                         .withStatistics()
                         .buildObjectSource();
 
