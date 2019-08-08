@@ -138,7 +138,7 @@ public class PendingBlockStore implements Flushable, Closeable {
         }
         this.levelSource =
                 new DataSource<>(levelDatabase, HASH_LIST_RLP_SERIALIZER)
-                        .withCache(20, Type.LRU)
+                        .withCache(12, Type.LRU)
                         .withStatistics()
                         .buildObjectSource();
 
@@ -164,7 +164,7 @@ public class PendingBlockStore implements Flushable, Closeable {
         }
         this.queueSource =
                 new DataSource<>(queueDatabase, BLOCK_LIST_RLP_SERIALIZER)
-                        .withCache(20, Type.LRU)
+                        .withCache(12, Type.LRU)
                         .withStatistics()
                         .buildObjectSource();
 
