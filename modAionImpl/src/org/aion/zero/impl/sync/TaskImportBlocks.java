@@ -10,6 +10,7 @@ import static org.aion.zero.impl.sync.PeerState.Mode.NORMAL;
 import static org.aion.zero.impl.sync.PeerState.Mode.THUNDER;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -43,11 +44,12 @@ import org.slf4j.Logger;
  */
 final class TaskImportBlocks implements Runnable {
 
+    private final SyncMgr syncMgr;
     private final AionBlockchainImpl chain;
 
     private final AtomicBoolean start;
 
-    private final BlockingQueue<BlocksWrapper> downloadedBlocks;
+    private final BlocksWrapper bw;
 
     private final SyncStats syncStats;
 
@@ -61,38 +63,30 @@ final class TaskImportBlocks implements Runnable {
     private SortedSet<Long> baseList;
     private PeerState state;
 
-    private final int slowImportTime;
-    private final int compactFrequency;
-
-    private long lastCompactTime;
-
     TaskImportBlocks(
+            final SyncMgr syncMgr,
             final Logger syncLog,
             final Logger surveyLog,
             final AionBlockchainImpl _chain,
             final AtomicBoolean _start,
             final SyncStats _syncStats,
-            final BlockingQueue<BlocksWrapper> _downloadedBlocks,
+            final BlocksWrapper downloadedBlocks,
             final Map<ByteArrayWrapper, Object> _importedBlockHashes,
-            final Map<Integer, PeerState> _peerStates,
-            final int _slowImportTime,
-            final int _compactFrequency) {
+            final Map<Integer, PeerState> _peerStates) {
+        this.syncMgr = syncMgr;
         this.log = syncLog;
         this.surveyLog = surveyLog;
         this.chain = _chain;
         this.start = _start;
         this.syncStats = _syncStats;
-        this.downloadedBlocks = _downloadedBlocks;
+        this.bw = downloadedBlocks;
         this.importedBlockHashes = _importedBlockHashes;
         this.peerStates = _peerStates;
         this.baseList = new TreeSet<>();
         this.state = new PeerState(NORMAL, 0L);
-        this.slowImportTime = _slowImportTime;
-        this.compactFrequency = _compactFrequency;
-        this.lastCompactTime = System.currentTimeMillis();
     }
 
-    ExecutorService executors =
+    public static ExecutorService executors =
             Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     @Override
@@ -101,19 +95,7 @@ final class TaskImportBlocks implements Runnable {
         long startTime, duration;
 
         Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
-        while (start.get()) {
-            BlocksWrapper bw;
-            try {
-                startTime = System.nanoTime();
-                bw = downloadedBlocks.take();
-                duration = System.nanoTime() - startTime;
-                surveyLog.info("Import Stage 1: wait for blocks, duration = {} ns.", duration);
-            } catch (InterruptedException ex) {
-                if (start.get()) {
-                    log.error("Import blocks thread interrupted without shutdown request.", ex);
-                }
-                return;
-            }
+
 
             startTime = System.nanoTime();
             PeerState peerState = peerStates.get(bw.getNodeIdHash());
@@ -156,14 +138,13 @@ final class TaskImportBlocks implements Runnable {
 
                 syncStats.update(getBestBlockNumber());
             }
-        }
+
         if (log.isDebugEnabled()) {
             log.debug(
                     "Thread ["
                             + Thread.currentThread().getName()
                             + "] performing block imports was shutdown.");
         }
-        executors.shutdown();
     }
 
     /**
@@ -411,11 +392,15 @@ final class TaskImportBlocks implements Runnable {
                                         baseList,
                                         chain);
                     } // else already updated to a correct request
+                    duration = System.nanoTime() - startTime;
+                    surveyLog.info("Import Stage 4.B: process all disk batches, duration = {} ns.", duration);
                     return state;
                 } else if (state.getMode() == BACKWARD || state.getMode() == FORWARD) {
                     // TODO: verify that this improves efficiency
                     // TODO: impact of allowing the LIGHTNING jump instead?
                     state.setMode(NORMAL);
+                    duration = System.nanoTime() - startTime;
+                    surveyLog.info("Import Stage 4.B: process all disk batches, duration = {} ns.", duration);
                     return state;
                 }
             }
@@ -598,21 +583,6 @@ final class TaskImportBlocks implements Runnable {
                         importResult,
                         t2 - t1);
             }
-        }
-        // trigger compact when IO is slow
-        if (slowImportTime > 0 // disabled when set to <= 0
-                && t2 - t1 > this.slowImportTime
-                && t2 - lastCompactTime > this.compactFrequency) {
-            if (log.isInfoEnabled()) {
-                log.info("Compacting state database due to slow IO time.");
-            }
-            t1 = System.currentTimeMillis();
-            this.chain.compactState();
-            t2 = System.currentTimeMillis();
-            if (log.isInfoEnabled()) {
-                log.info("Compacting state completed in {} ms.", t2 - t1);
-            }
-            lastCompactTime = t2;
         }
         return importResult;
     }

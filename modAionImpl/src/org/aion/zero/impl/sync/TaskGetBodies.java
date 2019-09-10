@@ -60,6 +60,8 @@ final class TaskGetBodies implements Runnable {
 
     @Override
     public void run() {
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 2);
+
         while (run.get()) {
             HeadersWrapper hw;
             try {
@@ -75,8 +77,8 @@ final class TaskGetBodies implements Runnable {
                 continue;
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info(
                         "<get-bodies from-num={} to-num={} node={}>",
                         headers.get(0).getNumber(),
                         headers.get(headers.size() - 1).getNumber(),

@@ -16,6 +16,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import org.aion.p2p.INode;
 import org.aion.p2p.IP2pMgr;
+import org.aion.zero.impl.sync.PeerState.Mode;
 import org.aion.zero.impl.sync.msg.ReqBlocksHeaders;
 import org.aion.zero.impl.sync.statistics.RequestType;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ final class TaskGetHeaders implements Runnable {
     private final Random random = new Random(System.currentTimeMillis());
 
     TaskGetHeaders(
+            boolean onlyNormalMode,
             IP2pMgr p2p,
             long selfNumber,
             BigInteger selfTd,
@@ -58,8 +60,8 @@ final class TaskGetHeaders implements Runnable {
     }
 
     /** Checks that the required time has passed since the last request. */
-    private boolean isTimelyRequest(long now, INode n) {
-        return (now - 5000)
+    private boolean isTimelyRequest(long now, long diff, INode n) {
+        return (now - diff)
                 > peerStates
                         .computeIfAbsent(n.getIdHash(), k -> new PeerState(NORMAL, selfNumber))
                         .getLastHeaderRequest();
@@ -67,15 +69,23 @@ final class TaskGetHeaders implements Runnable {
 
     @Override
     public void run() {
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 2);
+
         // get all active nodes
         Collection<INode> nodes = this.p2p.getActiveNodes().values();
 
-        // filter nodes by total difficulty
         long now = System.currentTimeMillis();
-        List<INode> nodesFiltered =
-                nodes.stream()
-                        .filter(n -> isAdequateTotalDifficulty(n) && isTimelyRequest(now, n))
-                        .collect(Collectors.toList());
+
+        List<INode> nodesFiltered;
+
+            // filter nodes by total difficulty
+            nodesFiltered =
+                    nodes.stream()
+                            .filter(
+                                    n ->
+                                            isAdequateTotalDifficulty(n)
+                                                    && isTimelyRequest(now, 1000, n))
+                            .collect(Collectors.toList());
 
         if (nodesFiltered.isEmpty()) {
             return;
@@ -162,8 +172,8 @@ final class TaskGetHeaders implements Runnable {
         }
 
         // send request
-        if (log.isDebugEnabled()) {
-            log.debug(
+        if (log.isInfoEnabled()) {
+            log.info(
                     "<get-headers mode={} from-num={} size={} node={}>",
                     state.getMode(),
                     from,

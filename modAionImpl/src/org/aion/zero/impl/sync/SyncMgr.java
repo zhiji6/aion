@@ -55,8 +55,6 @@ public final class SyncMgr {
     // store the headers whose bodies have been requested from corresponding peer
     private final ConcurrentHashMap<Integer, HeadersWrapper> headersWithBodiesRequested =
             new ConcurrentHashMap<>();
-    // store the downloaded blocks that are ready to import
-    private final BlockingQueue<BlocksWrapper> downloadedBlocks = new LinkedBlockingQueue<>();
     // store the hashes of blocks which have been successfully imported
     private final Map<ByteArrayWrapper, Object> importedBlockHashes =
             Collections.synchronizedMap(new LRUMap<>(4096));
@@ -197,21 +195,7 @@ public final class SyncMgr {
                                 log),
                         "sync-gb");
         syncGb.start();
-        syncIb =
-                new Thread(
-                        new TaskImportBlocks(
-                                log,
-                                survey_log,
-                                chain,
-                                start,
-                                stats,
-                                downloadedBlocks,
-                                importedBlockHashes,
-                                peerStates,
-                                _slowImportTime,
-                                _compactFrequency),
-                        "sync-ib");
-        syncIb.start();
+
         syncGs = new Thread(new TaskGetStatus(start, p2pMgr, stats, log), "sync-gs");
         syncGs.start();
 
@@ -241,23 +225,18 @@ public final class SyncMgr {
         this.evtMgr.registerEvent(events);
     }
 
-    private void getHeaders(BigInteger _selfTd) {
-        if (downloadedBlocks.size() > blocksQueueMax) {
-            if (queueFull.compareAndSet(false, true)) {
-                log.debug("Downloaded blocks queue is full. Stop requesting headers");
-            }
-        } else {
-            if (!workers.isShutdown()) {
-                workers.submit(
-                        new TaskGetHeaders(
-                                p2pMgr,
-                                chain.getBestBlock().getNumber(),
-                                _selfTd,
-                                peerStates,
-                                stats,
-                                log));
-                queueFull.set(false);
-            }
+    public void getHeaders(BigInteger _selfTd) {
+        if (!workers.isShutdown()) {
+            workers.submit(
+                    new TaskGetHeaders(
+                            false,
+                            p2pMgr,
+                            chain.getBestBlock().getNumber(),
+                            _selfTd,
+                            peerStates,
+                            stats,
+                            log));
+            queueFull.set(false);
         }
     }
 
@@ -359,16 +338,31 @@ public final class SyncMgr {
             return;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug(
+        if (log.isInfoEnabled()) {
+            log.info(
                     "<incoming-bodies from={} size={} node={}>",
                     blocks.get(0).getNumber(),
                     blocks.size(),
                     _displayId);
         }
 
-        // add batch
-        downloadedBlocks.add(new BlocksWrapper(_nodeIdHashcode, _displayId, blocks));
+        if (!workers.isShutdown()) {
+            workers.submit(
+                    new Thread(
+                            new TaskImportBlocks(
+                                    this,
+                                    log,
+                                    survey_log,
+                                    chain,
+                                    start,
+                                    stats,
+                                    new BlocksWrapper(_nodeIdHashcode, _displayId, blocks),
+                                    importedBlockHashes,
+                                    peerStates),
+                            "sync-ib"));
+            log.info("Submitted for import: node={}.", _displayId);
+            queueFull.set(false);
+        }
     }
 
     public long getNetworkBestBlockNumber() {
@@ -380,9 +374,10 @@ public final class SyncMgr {
     public synchronized void shutdown() {
         start.set(false);
         workers.shutdown();
+        TaskImportBlocks.executors.shutdown();
 
         interruptAndWait(syncGb, 10000);
-        interruptAndWait(syncIb, 10000);
+//        interruptAndWait(syncIb, 10000);
         interruptAndWait(syncGs, 10000);
         interruptAndWait(syncSs, 10000);
     }
