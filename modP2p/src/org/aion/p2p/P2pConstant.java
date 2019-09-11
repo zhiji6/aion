@@ -32,7 +32,7 @@ public class P2pConstant {
              * local best block is close to the top block in the peer's chain.
              */
             CLOSE_OVERLAPPING_BLOCKS = 15,
-            STEP_COUNT = 6,
+            STEP_COUNT = 5,
             MAX_NORMAL_PEERS = 16,
             COEFFICIENT_NORMAL_PEERS = 3,
 
