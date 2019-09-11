@@ -284,17 +284,15 @@ public final class SyncMgr {
         if (!filtered.isEmpty()) {
             if (!workers.isShutdown()) {
                 workers.submit(
-                        new Thread(
-                                new TaskGetBodies(
-                                        p2pMgr,
-                                        start,
-                                        new HeadersWrapper(_nodeIdHashcode, _displayId, filtered),
-                                        headersWithBodiesRequested,
-                                        peerStates,
-                                        stats,
-                                        log),
-                                "sync-gb"));
-
+                        new TaskGetBodies(
+                                p2pMgr,
+                                start,
+                                new HeadersWrapper(_nodeIdHashcode, _displayId, filtered),
+                                headersWithBodiesRequested,
+                                peerStates,
+                                stats,
+                                log),
+                        "sync-gb");
                 log.info("Submitted for getting bodies: node={}.", _displayId);
             }
         }
@@ -344,18 +342,17 @@ public final class SyncMgr {
 
         if (!workers.isShutdown()) {
             workers.submit(
-                    new Thread(
-                            new TaskImportBlocks(
-                                    this,
-                                    log,
-                                    survey_log,
-                                    chain,
-                                    start,
-                                    stats,
-                                    new BlocksWrapper(_nodeIdHashcode, _displayId, blocks),
-                                    importedBlockHashes,
-                                    peerStates),
-                            "sync-ib"));
+                    new TaskImportBlocks(
+                            this,
+                            log,
+                            survey_log,
+                            chain,
+                            start,
+                            stats,
+                            new BlocksWrapper(_nodeIdHashcode, _displayId, blocks),
+                            importedBlockHashes,
+                            peerStates),
+                    "sync-ib");
             log.info("Submitted for import: node={}.", _displayId);
         }
     }

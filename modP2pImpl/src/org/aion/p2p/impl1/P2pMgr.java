@@ -1,6 +1,7 @@
 package org.aion.p2p.impl1;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.channels.SelectionKey;
@@ -16,11 +17,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.aion.p2p.Ctrl;
 import org.aion.p2p.Handler;
 import org.aion.p2p.Header;
@@ -84,6 +89,25 @@ public final class P2pMgr implements IP2pMgr {
 
     private static ReqHandshake1 cachedReqHandshake1;
     private static ResHandshake1 cachedResHandshake1;
+
+    private ExecutorService workers =
+        Executors.newCachedThreadPool(
+            new ThreadFactory() {
+
+                private AtomicInteger cnt = new AtomicInteger(0);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    return new Thread(r, "receive-" + cnt.incrementAndGet());
+                }
+            });
+
+    @Override
+    public void submitTask(Runnable task) {
+        if (!workers.isShutdown()) {
+            workers.submit(task);
+        }
+    }
 
     public enum Dest {
         INBOUND,
@@ -213,12 +237,6 @@ public final class P2pMgr implements IP2pMgr {
                 thrdOut.start();
             }
 
-            for (int i = 0; i < WORKER; i++) {
-                Thread t = new Thread(getReceiveInstance(), "p2p-worker-" + i);
-                t.setPriority(Thread.NORM_PRIORITY);
-                t.start();
-            }
-
             if (upnpEnable) {
                 scheduledWorkers.scheduleWithFixedDelay(
                         new TaskUPnPManager(p2pLOG, selfPort),
@@ -288,7 +306,7 @@ public final class P2pMgr implements IP2pMgr {
     @Override
     public void shutdown() {
         start.set(false);
-
+        workers.shutdown();
         if (scheduledWorkers != null) {
             scheduledWorkers.shutdownNow();
         }
@@ -464,10 +482,6 @@ public final class P2pMgr implements IP2pMgr {
 
     private TaskSend getSendInstance(int i) {
         return new TaskSend(p2pLOG, this, i, sendMsgQue, start, nodeMgr, selector);
-    }
-
-    private TaskReceive getReceiveInstance() {
-        return new TaskReceive(p2pLOG, surveyLog, start, receiveMsgQue, handlers);
     }
 
     private TaskStatus getStatusInstance() {

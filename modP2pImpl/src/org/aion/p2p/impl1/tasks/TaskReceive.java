@@ -11,62 +11,54 @@ public class TaskReceive implements Runnable {
 
     private final Logger p2pLOG, surveyLog;
     private final AtomicBoolean start;
-    private final BlockingQueue<MsgIn> receiveMsgQue;
+    private final MsgIn mi;
     private final Map<Integer, List<Handler>> handlers;
 
     public TaskReceive(
             final Logger p2pLOG,
             final Logger surveyLog,
             final AtomicBoolean _start,
-            final BlockingQueue<MsgIn> _receiveMsgQue,
+            final MsgIn receivedMsg,
             final Map<Integer, List<Handler>> _handlers) {
         this.p2pLOG = p2pLOG;
         this.surveyLog = surveyLog;
         this.start = _start;
-        this.receiveMsgQue = _receiveMsgQue;
+        this.mi = receivedMsg;
         this.handlers = _handlers;
     }
 
     @Override
     public void run() {
-        while (this.start.get()) {
-            try {
-                long startTime = System.nanoTime();
-                MsgIn mi = this.receiveMsgQue.take();
-                long duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskReceive: take, duration = {} ns.", duration);
+        long startTime, duration;
 
-                startTime = System.nanoTime();
-                List<Handler> hs = this.handlers.get(mi.getRoute());
-                if (hs == null) {
+        try {
+            startTime = System.nanoTime();
+            List<Handler> hs = this.handlers.get(mi.getRoute());
+            if (hs == null) {
+                duration = System.nanoTime() - startTime;
+                surveyLog.info("TaskReceive: work, duration = {} ns.", duration);
+                return;
+            }
+            for (Handler hlr : hs) {
+                if (hlr == null) {
                     duration = System.nanoTime() - startTime;
                     surveyLog.info("TaskReceive: work, duration = {} ns.", duration);
                     continue;
                 }
-                for (Handler hlr : hs) {
-                    if (hlr == null) {
-                        duration = System.nanoTime() - startTime;
-                        surveyLog.info("TaskReceive: work, duration = {} ns.", duration);
-                        continue;
-                    }
 
-                    try {
-                        hlr.receive(mi.getNodeId(), mi.getDisplayId(), mi.getMsg());
-                    } catch (Exception e) {
-                        if (p2pLOG.isDebugEnabled()) {
-                            p2pLOG.debug("TaskReceive exception.", e);
-                        }
+                try {
+                    hlr.receive(mi.getNodeId(), mi.getDisplayId(), mi.getMsg());
+                } catch (Exception e) {
+                    if (p2pLOG.isDebugEnabled()) {
+                        p2pLOG.debug("TaskReceive exception.", e);
                     }
                 }
-                duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskReceive: work, duration = {} ns.", duration);
-            } catch (InterruptedException e) {
-                p2pLOG.error("TaskReceive interrupted.", e);
-                return;
-            } catch (Exception e) {
-                if (p2pLOG.isDebugEnabled()) {
-                    p2pLOG.debug("TaskReceive exception.", e);
-                }
+            }
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskReceive: work, duration = {} ns.", duration);
+        } catch (Exception e) {
+            if (p2pLOG.isDebugEnabled()) {
+                p2pLOG.debug("TaskReceive exception.", e);
             }
         }
     }

@@ -68,4 +68,6 @@ public interface IP2pMgr {
      *     manager's definition of node equality, {@code false} otherwise
      */
     boolean isSelf(INode node);
+
+    void submitTask(Runnable taskReceive);
 }

@@ -44,7 +44,6 @@ public class TaskInbound implements Runnable {
     private final AtomicBoolean start;
     private final BlockingQueue<MsgOut> sendMsgQue;
     private final ResHandshake1 cachedResHandshake1;
-    private final BlockingQueue<MsgIn> receiveMsgQue;
 
     public TaskInbound(
             final Logger p2pLOG,
@@ -67,12 +66,13 @@ public class TaskInbound implements Runnable {
         this.handlers = _handlers;
         this.sendMsgQue = _sendMsgQue;
         this.cachedResHandshake1 = _cachedResHandshake1;
-        this.receiveMsgQue = _receiveMsgQue;
     }
 
     @Override
     public void run() {
-    // for runtime survey information
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY - 1);
+
+        // for runtime survey information
         long startTime, duration;
 
         // readBuffer buffer pre-alloc. @ max_body_size
@@ -551,7 +551,7 @@ public class TaskInbound implements Runnable {
             int nodeIdHash = node.getIdHash();
             String nodeDisplayId = node.getIdShort();
             node.refreshTimestamp();
-            this.receiveMsgQue.offer(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
+            this.mgr.submitTask(new TaskReceive(p2pLOG, surveyLog, start, new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes), handlers));
         } else {
             p2pLOG.debug("handleKernelMsg can't find hash{}", _nodeIdHash);
         }
