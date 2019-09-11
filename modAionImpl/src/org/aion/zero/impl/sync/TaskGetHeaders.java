@@ -91,8 +91,11 @@ final class TaskGetHeaders implements Runnable {
             return;
         }
 
-        // pick one random node
-        INode node = nodesFiltered.get(random.nextInt(nodesFiltered.size()));
+        if (log.isInfoEnabled()) {
+            log.info("<get-headers filtered count={}>", nodesFiltered.size());
+        }
+
+        for (INode node : nodesFiltered) {
 
         // fetch the peer state
         PeerState state = peerStates.get(node.getIdHash());
@@ -187,5 +190,5 @@ final class TaskGetHeaders implements Runnable {
 
         // update timestamp
         state.setLastHeaderRequest(now);
-    }
+    }}
 }
