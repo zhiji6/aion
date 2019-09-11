@@ -5,6 +5,7 @@ import static org.aion.p2p.P2pConstant.CLOSE_OVERLAPPING_BLOCKS;
 import static org.aion.p2p.P2pConstant.FAR_OVERLAPPING_BLOCKS;
 import static org.aion.p2p.P2pConstant.LARGE_REQUEST_SIZE;
 import static org.aion.p2p.P2pConstant.REQUEST_SIZE;
+import static org.aion.zero.impl.sync.PeerState.Mode.LIGHTNING;
 import static org.aion.zero.impl.sync.PeerState.Mode.NORMAL;
 import static org.aion.zero.impl.sync.PeerState.Mode.THUNDER;
 
@@ -16,7 +17,6 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import org.aion.p2p.INode;
 import org.aion.p2p.IP2pMgr;
-import org.aion.zero.impl.sync.PeerState.Mode;
 import org.aion.zero.impl.sync.msg.ReqBlocksHeaders;
 import org.aion.zero.impl.sync.statistics.RequestType;
 import org.slf4j.Logger;
@@ -78,24 +78,18 @@ final class TaskGetHeaders implements Runnable {
 
         List<INode> nodesFiltered;
 
-            // filter nodes by total difficulty
-            nodesFiltered =
-                    nodes.stream()
-                            .filter(
-                                    n ->
-                                            isAdequateTotalDifficulty(n)
-                                                    && isTimelyRequest(now, 1000, n))
-                            .collect(Collectors.toList());
+        // filter nodes by total difficulty
+        nodesFiltered =
+                nodes.stream()
+                        .filter(n -> isAdequateTotalDifficulty(n) && isTimelyRequest(now, 1000, n))
+                        .collect(Collectors.toList());
 
         if (nodesFiltered.isEmpty()) {
             return;
         }
 
-        if (log.isInfoEnabled()) {
-            log.info("<get-headers filtered count={}>", nodesFiltered.size());
-        }
-
-        for (INode node : nodesFiltered) {
+        // used skip normal requests after the first one
+        INode node = nodesFiltered.get(random.nextInt(nodesFiltered.size()));
 
         // fetch the peer state
         PeerState state = peerStates.get(node.getIdHash());
@@ -190,5 +184,56 @@ final class TaskGetHeaders implements Runnable {
 
         // update timestamp
         state.setLastHeaderRequest(now);
-    }}
+        int count = 1; // already sent one
+        nodesFiltered.remove(node);
+
+        for (INode fastNode : nodesFiltered) {
+            // fetch the peer state
+            state = peerStates.get(fastNode.getIdHash());
+
+            if (state.getMode() == LIGHTNING) {
+                count++;
+
+                // decide the start block number
+                from = 0;
+                size = REQUEST_SIZE;
+
+                state.setLastBestBlock(fastNode.getBestBlockNumber());
+
+                // request far forward blocks
+                if (state.getBase() > selfNumber + LARGE_REQUEST_SIZE
+                        // there have not been STEP_COUNT sequential requests
+                        && state.isUnderRepeatThreshold()) {
+                    size = LARGE_REQUEST_SIZE;
+                    from = state.getBase();
+                    break;
+                } else {
+                    // transition to ramp down strategy
+                    state.setMode(THUNDER);
+                }
+
+                // send request
+                if (log.isInfoEnabled()) {
+                    log.info(
+                            "<get-headers mode={} from-num={} size={} node={}>",
+                            state.getMode(),
+                            from,
+                            size,
+                            fastNode.getIdShort());
+                }
+                rbh = new ReqBlocksHeaders(from, size);
+                this.p2p.send(fastNode.getIdHash(), fastNode.getIdShort(), rbh);
+                stats.updateTotalRequestsToPeer(fastNode.getIdShort(), RequestType.STATUS);
+                stats.updateRequestTime(
+                        fastNode.getIdShort(), System.nanoTime(), RequestType.HEADERS);
+
+                // update timestamp
+                state.setLastHeaderRequest(now);
+            }
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info("<get-headers filtered count={}>", count);
+        }
+    }
 }
