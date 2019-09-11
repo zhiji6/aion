@@ -50,15 +50,12 @@ public final class SyncMgr {
     private final NetworkStatus networkStatus = new NetworkStatus();
     // peer syncing states
     private final Map<Integer, PeerState> peerStates = new ConcurrentHashMap<>();
-    // store the downloaded headers from network
-    private final BlockingQueue<HeadersWrapper> downloadedHeaders = new LinkedBlockingQueue<>();
     // store the headers whose bodies have been requested from corresponding peer
     private final ConcurrentHashMap<Integer, HeadersWrapper> headersWithBodiesRequested =
             new ConcurrentHashMap<>();
     // store the hashes of blocks which have been successfully imported
     private final Map<ByteArrayWrapper, Object> importedBlockHashes =
             Collections.synchronizedMap(new LRUMap<>(4096));
-    private int blocksQueueMax; // block header wrappers
     private AionBlockchainImpl chain;
     private IP2pMgr p2pMgr;
     private IEventMgr evtMgr;
@@ -176,25 +173,10 @@ public final class SyncMgr {
         chain = _chain;
         evtMgr = _evtMgr;
 
-        blocksQueueMax = _blocksQueueMax;
-
         blockHeaderValidator = new ChainConfiguration().createBlockHeaderValidator();
 
         long selfBest = chain.getBestBlock().getNumber();
         stats = new SyncStats(selfBest, _showStatus, showStatistics, maxActivePeers);
-
-        syncGb =
-                new Thread(
-                        new TaskGetBodies(
-                                p2pMgr,
-                                start,
-                                downloadedHeaders,
-                                headersWithBodiesRequested,
-                                peerStates,
-                                stats,
-                                log),
-                        "sync-gb");
-        syncGb.start();
 
         syncGs = new Thread(new TaskGetStatus(start, p2pMgr, stats, log), "sync-gs");
         syncGs.start();
@@ -300,7 +282,21 @@ public final class SyncMgr {
         // NOTE: the filtered headers is still continuous
 
         if (!filtered.isEmpty()) {
-            downloadedHeaders.add(new HeadersWrapper(_nodeIdHashcode, _displayId, filtered));
+            if (!workers.isShutdown()) {
+                workers.submit(
+                        new Thread(
+                                new TaskGetBodies(
+                                        p2pMgr,
+                                        start,
+                                        new HeadersWrapper(_nodeIdHashcode, _displayId, filtered),
+                                        headersWithBodiesRequested,
+                                        peerStates,
+                                        stats,
+                                        log),
+                                "sync-gb"));
+
+                log.info("Submitted for getting bodies: node={}.", _displayId);
+            }
         }
     }
 
@@ -361,7 +357,6 @@ public final class SyncMgr {
                                     peerStates),
                             "sync-ib"));
             log.info("Submitted for import: node={}.", _displayId);
-            queueFull.set(false);
         }
     }
 
@@ -376,7 +371,7 @@ public final class SyncMgr {
         workers.shutdown();
         TaskImportBlocks.executors.shutdown();
 
-        interruptAndWait(syncGb, 10000);
+//        interruptAndWait(syncGb, 10000);
 //        interruptAndWait(syncIb, 10000);
         interruptAndWait(syncGs, 10000);
         interruptAndWait(syncSs, 10000);

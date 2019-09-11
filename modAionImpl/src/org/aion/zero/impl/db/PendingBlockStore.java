@@ -599,6 +599,8 @@ public class PendingBlockStore implements Closeable {
             for (ByteArrayWrapper q : queues) {
                 // load the queue from disk
                 List<Block> currentQ = queueSource.get(q.getData());
+                // TODO: optimize later for multiple deletes of the same data
+                if (currentQ == null) return;
 
                 // delete imported blocks
                 for (Block b : blocks.get(q)) {
