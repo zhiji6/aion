@@ -1,7 +1,6 @@
 package org.aion.p2p.impl1;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.channels.SelectionKey;
@@ -15,7 +14,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,6 +21,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,14 +40,11 @@ import org.aion.p2p.impl.comm.Node;
 import org.aion.p2p.impl.comm.NodeMgr;
 import org.aion.p2p.impl.zero.msg.ReqHandshake1;
 import org.aion.p2p.impl.zero.msg.ResHandshake1;
-import org.aion.p2p.impl1.tasks.MsgIn;
 import org.aion.p2p.impl1.tasks.MsgOut;
 import org.aion.p2p.impl1.tasks.TaskClear;
 import org.aion.p2p.impl1.tasks.TaskConnectPeers;
 import org.aion.p2p.impl1.tasks.TaskInbound;
-import org.aion.p2p.impl1.tasks.TaskReceive;
 import org.aion.p2p.impl1.tasks.TaskSend;
-import org.aion.p2p.impl1.tasks.TaskStatus;
 import org.apache.commons.collections4.map.LRUMap;
 import org.slf4j.Logger;
 
@@ -84,13 +80,11 @@ public final class P2pMgr implements IP2pMgr {
     private Selector selector;
     private ScheduledExecutorService scheduledWorkers;
     private int errTolerance;
-    private BlockingQueue<MsgOut> sendMsgQue = new LinkedBlockingQueue<>();
-    private BlockingQueue<MsgIn> receiveMsgQue = new LinkedBlockingQueue<>();
 
     private static ReqHandshake1 cachedReqHandshake1;
     private static ResHandshake1 cachedResHandshake1;
 
-    private ExecutorService workers =
+    private ExecutorService workersReceive =
         Executors.newCachedThreadPool(
             new ThreadFactory() {
 
@@ -102,10 +96,22 @@ public final class P2pMgr implements IP2pMgr {
                 }
             });
 
+    private ExecutorService workersSend =
+        Executors.newCachedThreadPool(
+            new ThreadFactory() {
+
+                private AtomicInteger cnt = new AtomicInteger(0);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    return new Thread(r, "send-" + cnt.incrementAndGet());
+                }
+            });
+
     @Override
     public void submitTask(Runnable task) {
-        if (!workers.isShutdown()) {
-            workers.submit(task);
+        if (!workersReceive.isShutdown()) {
+            workersReceive.submit(task);
         }
     }
 
@@ -231,12 +237,6 @@ public final class P2pMgr implements IP2pMgr {
                         });
             }
 
-            for (int i = 0; i < WORKER; i++) {
-                Thread thrdOut = new Thread(getSendInstance(i), "p2p-out-" + i);
-                thrdOut.setPriority(Thread.NORM_PRIORITY);
-                thrdOut.start();
-            }
-
             if (upnpEnable) {
                 scheduledWorkers.scheduleWithFixedDelay(
                         new TaskUPnPManager(p2pLOG, selfPort),
@@ -245,11 +245,11 @@ public final class P2pMgr implements IP2pMgr {
                         TimeUnit.MILLISECONDS);
             }
 
-            if (p2pLOG.isInfoEnabled()) {
-                Thread threadStatus = new Thread(getStatusInstance(), "p2p-ts");
-                threadStatus.setPriority(Thread.NORM_PRIORITY);
-                threadStatus.start();
-            }
+//            if (p2pLOG.isInfoEnabled()) {
+//                Thread threadStatus = new Thread(getStatusInstance(), "p2p-ts");
+//                threadStatus.setPriority(Thread.NORM_PRIORITY);
+//                threadStatus.start();
+//            }
 
             if (!syncSeedsOnly) {
                 scheduledWorkers.scheduleWithFixedDelay(
@@ -300,13 +300,54 @@ public final class P2pMgr implements IP2pMgr {
 
     @Override
     public void send(int _nodeIdHash, String _nodeIdShort, final Msg _msg) {
-        sendMsgQue.add(new MsgOut(_nodeIdHash, _nodeIdShort, _msg, Dest.ACTIVE));
+        if (!workersSend.isShutdown()) {
+            workersSend.submit(
+                    new TaskSend(
+                            p2pLOG,
+                            surveyLog,
+                            this,
+                            new MsgOut(_nodeIdHash, _nodeIdShort, _msg, Dest.ACTIVE),
+                            nodeMgr,
+                            selector));
+        }
+    }
+
+    public void send(int _nodeIdHash, String _nodeIdShort, final Msg _msg, Dest dest) {
+        if (!workersSend.isShutdown()) {
+            workersSend.submit(
+                new TaskSend(
+                    p2pLOG,
+                    surveyLog,
+                    this,
+                    new MsgOut(_nodeIdHash, _nodeIdShort, _msg, dest),
+                    nodeMgr,
+                    selector));
+        }
+    }
+
+    private static final int THREAD_Q_LIMIT = 20000;
+
+    ThreadPoolExecutor tpe =
+            new ThreadPoolExecutor(
+                    WORKER,
+                    WORKER,
+                    0,
+                    TimeUnit.MILLISECONDS,
+                    new LinkedBlockingQueue<>(THREAD_Q_LIMIT),
+                    Executors.defaultThreadFactory());
+
+    @Override
+    public void executeTpe(Runnable task) {
+        if (!tpe.isShutdown()) {
+            tpe.execute(task);
+        }
     }
 
     @Override
     public void shutdown() {
         start.set(false);
-        workers.shutdown();
+        workersReceive.shutdown();
+        workersSend.shutdown();
         if (scheduledWorkers != null) {
             scheduledWorkers.shutdownNow();
         }
@@ -475,18 +516,12 @@ public final class P2pMgr implements IP2pMgr {
                 this.start,
                 this.nodeMgr,
                 this.handlers,
-                this.sendMsgQue,
-                cachedResHandshake1,
-                this.receiveMsgQue);
+                cachedResHandshake1);
     }
 
-    private TaskSend getSendInstance(int i) {
-        return new TaskSend(p2pLOG, surveyLog, this, i, sendMsgQue, start, nodeMgr, selector);
-    }
-
-    private TaskStatus getStatusInstance() {
-        return new TaskStatus(p2pLOG, surveyLog, start, nodeMgr, selfShortId, sendMsgQue, receiveMsgQue);
-    }
+//    private TaskStatus getStatusInstance() {
+//        return new TaskStatus(p2pLOG, surveyLog, start, nodeMgr, selfShortId, sendMsgQue, receiveMsgQue);
+//    }
 
     private TaskClear getClearInstance() {
         return new TaskClear(p2pLOG, nodeMgr, start);
@@ -500,7 +535,6 @@ public final class P2pMgr implements IP2pMgr {
                 this.nodeMgr,
                 this.maxActiveNodes,
                 this.selector,
-                this.sendMsgQue,
                 cachedReqHandshake1);
     }
 

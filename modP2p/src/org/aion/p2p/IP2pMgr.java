@@ -70,4 +70,6 @@ public interface IP2pMgr {
     boolean isSelf(INode node);
 
     void submitTask(Runnable taskReceive);
+
+    void executeTpe(Runnable taskWrite);
 }

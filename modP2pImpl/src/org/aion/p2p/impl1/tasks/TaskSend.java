@@ -19,40 +19,24 @@ public class TaskSend implements Runnable {
 
     private final Logger p2pLOG, surveyLog;
     private final IP2pMgr mgr;
-    private final AtomicBoolean start;
-    private final BlockingQueue<MsgOut> sendMsgQue;
+    private final MsgOut mo;
     private final INodeMgr nodeMgr;
     private final Selector selector;
-    private final int lane;
-    private final ThreadPoolExecutor tpe;
-    private static final int THREAD_Q_LIMIT = 20000;
 
     public TaskSend(
             final Logger p2pLOG,
             final Logger surveyLog,
             final IP2pMgr _mgr,
-            final int _lane,
-            final BlockingQueue<MsgOut> _sendMsgQue,
-            final AtomicBoolean _start,
+            final MsgOut sendMsg,
             final INodeMgr _nodeMgr,
             final Selector _selector) {
 
         this.p2pLOG = p2pLOG;
         this.surveyLog = surveyLog;
         this.mgr = _mgr;
-        this.lane = _lane;
-        this.sendMsgQue = _sendMsgQue;
-        this.start = _start;
+        this.mo = sendMsg;
         this.nodeMgr = _nodeMgr;
         this.selector = _selector;
-        this.tpe =
-                new ThreadPoolExecutor(
-                        1,
-                        1,
-                        0,
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(THREAD_Q_LIMIT),
-                        Executors.defaultThreadFactory());
     }
 
     @Override
@@ -60,80 +44,60 @@ public class TaskSend implements Runnable {
         // for runtime survey information
         long startTime, duration;
 
-        while (start.get()) {
-            try {
-                startTime = System.nanoTime();
-                MsgOut mo = sendMsgQue.take();
-                duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskSend: take, duration = {} ns.", duration);
-
-                startTime = System.nanoTime();
-                // if timeout , throw away this msg.
-                long now = System.currentTimeMillis();
-                if (now - mo.getTimestamp() > P2pConstant.WRITE_MSG_TIMEOUT) {
-                    if (p2pLOG.isDebugEnabled()) {
-                        p2pLOG.debug("timeout-msg to-node={} timestamp={}", mo.getDisplayId(), now);
-                    }
-                    duration = System.nanoTime() - startTime;
-                    surveyLog.info("TaskSend: timeout, duration = {} ns.", duration);
-                    continue;
-                }
-
-                // if not belong to current lane, put it back.
-                if (mo.getLane() != lane) {
-                    sendMsgQue.offer(mo);
-                    duration = System.nanoTime() - startTime;
-                    surveyLog.info("TaskSend: put back, duration = {} ns.", duration);
-                    continue;
-                }
-
-                INode node = null;
-                switch (mo.getDest()) {
-                    case ACTIVE:
-                        node = nodeMgr.getActiveNode(mo.getNodeId());
-                        break;
-                    case INBOUND:
-                        node = nodeMgr.getInboundNode(mo.getNodeId());
-                        break;
-                    case OUTBOUND:
-                        node = nodeMgr.getOutboundNode(mo.getNodeId());
-                        break;
-                }
-
-                if (node != null) {
-                    SelectionKey sk = node.getChannel().keyFor(selector);
-                    if (sk != null) {
-                        Object attachment = sk.attachment();
-                        if (attachment != null) {
-                            tpe.execute(
-                                    new TaskWrite(
-                                            p2pLOG,
-                                            node.getIdShort(),
-                                            node.getChannel(),
-                                            mo.getMsg(),
-                                            (ChannelBuffer) attachment,
-                                            this.mgr));
-                        }
-                    }
-                } else {
-                    if (p2pLOG.isDebugEnabled()) {
-                        p2pLOG.debug(
-                                "msg-{} ->{} node-not-exist",
-                                mo.getDest().name(),
-                                mo.getDisplayId());
-                    }
-                }
-                duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskSend: work, duration = {} ns.", duration);
-            } catch (InterruptedException e) {
-                p2pLOG.error("task-send-interrupted", e);
-                return;
-            } catch (RejectedExecutionException e) {
-                p2pLOG.warn("task-send-reached thread queue limit", e);
-            } catch (Exception e) {
+        try {
+            startTime = System.nanoTime();
+            // if timeout , throw away this msg.
+            long now = System.currentTimeMillis();
+            if (now - mo.getTimestamp() > P2pConstant.WRITE_MSG_TIMEOUT) {
                 if (p2pLOG.isDebugEnabled()) {
-                    p2pLOG.debug("TaskSend exception.", e);
+                    p2pLOG.debug("timeout-msg to-node={} timestamp={}", mo.getDisplayId(), now);
                 }
+                duration = System.nanoTime() - startTime;
+                surveyLog.info("TaskSend: timeout, duration = {} ns.", duration);
+                return;
+            }
+
+            INode node = null;
+            switch (mo.getDest()) {
+                case ACTIVE:
+                    node = nodeMgr.getActiveNode(mo.getNodeId());
+                    break;
+                case INBOUND:
+                    node = nodeMgr.getInboundNode(mo.getNodeId());
+                    break;
+                case OUTBOUND:
+                    node = nodeMgr.getOutboundNode(mo.getNodeId());
+                    break;
+            }
+
+            if (node != null) {
+                SelectionKey sk = node.getChannel().keyFor(selector);
+                if (sk != null) {
+                    Object attachment = sk.attachment();
+                    if (attachment != null) {
+                        mgr.executeTpe(
+                                new TaskWrite(
+                                        p2pLOG,
+                                        node.getIdShort(),
+                                        node.getChannel(),
+                                        mo.getMsg(),
+                                        (ChannelBuffer) attachment,
+                                        this.mgr));
+                    }
+                }
+            } else {
+                if (p2pLOG.isDebugEnabled()) {
+                    p2pLOG.debug(
+                            "msg-{} ->{} node-not-exist", mo.getDest().name(), mo.getDisplayId());
+                }
+            }
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskSend: work, duration = {} ns.", duration);
+        } catch (RejectedExecutionException e) {
+            p2pLOG.warn("task-send-reached thread queue limit", e);
+        } catch (Exception e) {
+            if (p2pLOG.isDebugEnabled()) {
+                p2pLOG.debug("TaskSend exception.", e);
             }
         }
     }

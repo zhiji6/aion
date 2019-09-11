@@ -42,7 +42,6 @@ public class TaskInbound implements Runnable {
     private final INodeMgr nodeMgr;
     private final Map<Integer, List<Handler>> handlers;
     private final AtomicBoolean start;
-    private final BlockingQueue<MsgOut> sendMsgQue;
     private final ResHandshake1 cachedResHandshake1;
 
     public TaskInbound(
@@ -53,9 +52,7 @@ public class TaskInbound implements Runnable {
             final AtomicBoolean _start,
             final INodeMgr _nodeMgr,
             final Map<Integer, List<Handler>> _handlers,
-            final BlockingQueue<MsgOut> _sendMsgQue,
-            final ResHandshake1 _cachedResHandshake1,
-            final BlockingQueue<MsgIn> _receiveMsgQue) {
+            final ResHandshake1 _cachedResHandshake1) {
 
         this.p2pLOG = p2pLOG;
         this.surveyLog = surveyLog;
@@ -64,7 +61,6 @@ public class TaskInbound implements Runnable {
         this.start = _start;
         this.nodeMgr = _nodeMgr;
         this.handlers = _handlers;
-        this.sendMsgQue = _sendMsgQue;
         this.cachedResHandshake1 = _cachedResHandshake1;
     }
 
@@ -432,12 +428,10 @@ public class TaskInbound implements Runnable {
                 if (rb.getNodeIdHash() != 0) {
                     INode node = nodeMgr.getActiveNode(rb.getNodeIdHash());
                     if (node != null) {
-                        this.sendMsgQue.offer(
-                                new MsgOut(
-                                        node.getIdHash(),
-                                        node.getIdShort(),
-                                        new ResActiveNodes(p2pLOG, nodeMgr.getActiveNodesList()),
-                                        Dest.ACTIVE));
+                        this.mgr.send(
+                                node.getIdHash(),
+                                node.getIdShort(),
+                                new ResActiveNodes(p2pLOG, nodeMgr.getActiveNodesList()));
                     }
                 }
                 break;
@@ -515,12 +509,7 @@ public class TaskInbound implements Runnable {
                     binaryVersion = new String(_revision, StandardCharsets.UTF_8);
                     node.setBinaryVersion(binaryVersion);
                     nodeMgr.movePeerToActive(_channelHash, "inbound");
-                    this.sendMsgQue.offer(
-                            new MsgOut(
-                                    node.getIdHash(),
-                                    node.getIdShort(),
-                                    this.cachedResHandshake1,
-                                    Dest.ACTIVE));
+                    this.mgr.send(node.getIdHash(), node.getIdShort(), this.cachedResHandshake1);
                 }
 
             } else {
