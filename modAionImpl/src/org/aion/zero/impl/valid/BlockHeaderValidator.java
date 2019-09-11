@@ -14,7 +14,7 @@ public class BlockHeaderValidator extends AbstractBlockHeaderValidator {
         this.rules = rules;
     }
 
-    public boolean validate(BlockHeader header, Logger logger) {
+    public boolean validate(final BlockHeader header, final Logger logger) {
         List<RuleError> errors = new LinkedList<>();
         for (BlockHeaderRule rule : rules) {
             if (!rule.validate(header, errors)) {

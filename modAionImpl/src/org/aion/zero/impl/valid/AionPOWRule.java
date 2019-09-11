@@ -29,13 +29,13 @@ public class AionPOWRule extends BlockHeaderRule {
         BigInteger hash = new BigInteger(1, HashUtil.h256(input));
 
         if (hash.compareTo(boundary) >= 0) {
-            addError(formatError(hash, boundary), errors);
+            addError(formatError(hash, boundary, header), errors);
             return false;
         }
         return true;
     }
 
-    private static String formatError(BigInteger actual, BigInteger boundary) {
-        return "computed output (" + actual + ") violates boundary condition (" + boundary + ")";
+    private static String formatError(BigInteger actual, BigInteger boundary, A0BlockHeader header) {
+        return "computed output (" + actual + ") violates boundary condition (" + boundary + ")" + " for header: "+header;
     }
 }
