@@ -481,7 +481,7 @@ public final class P2pMgr implements IP2pMgr {
     }
 
     private TaskSend getSendInstance(int i) {
-        return new TaskSend(p2pLOG, this, i, sendMsgQue, start, nodeMgr, selector);
+        return new TaskSend(p2pLOG, surveyLog, this, i, sendMsgQue, start, nodeMgr, selector);
     }
 
     private TaskStatus getStatusInstance() {
