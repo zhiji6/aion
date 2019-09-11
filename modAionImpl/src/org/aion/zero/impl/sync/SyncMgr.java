@@ -110,6 +110,7 @@ public final class SyncMgr {
         // trigger send headers routine immediately
         if (_remoteTotalDiff.compareTo(selfTd) > 0) {
             this.getHeaders(selfTd);
+            this.getHeaders(selfTd);
         }
 
         long now = System.currentTimeMillis();
