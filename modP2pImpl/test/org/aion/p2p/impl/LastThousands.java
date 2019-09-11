@@ -45,7 +45,7 @@ public class LastThousands {
         int maxPort = port + max;
         String[] testerP2p = new String[] {"p2p://" + nodeId + "@" + ip + ":" + port};
         P2pMgr tester =
-                new P2pMgr(p2pLOG, 0, "", nodeId, ip, port, new String[] {}, false, max, max, false, 50);
+                new P2pMgr(p2pLOG, p2pLOG,0, "", nodeId, ip, port, new String[] {}, false, max, max, false, 50);
 
         List<P2pMgr> examiners = new ArrayList<>();
 
@@ -54,7 +54,7 @@ public class LastThousands {
                 System.out.println("examiner " + i);
                 P2pMgr examiner =
                         new P2pMgr(
-                                p2pLOG,
+                                p2pLOG, p2pLOG,
                                 0,
                                 "",
                                 UUID.randomUUID().toString(),

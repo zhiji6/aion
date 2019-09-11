@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 
 public class TaskInbound implements Runnable {
 
-    private final Logger p2pLOG;
+    private final Logger p2pLOG, surveyLog;
     private final IP2pMgr mgr;
     private final Selector selector;
     private final INodeMgr nodeMgr;
@@ -48,6 +48,7 @@ public class TaskInbound implements Runnable {
 
     public TaskInbound(
             final Logger p2pLOG,
+            final Logger surveyLog,
             final IP2pMgr _mgr,
             final Selector _selector,
             final AtomicBoolean _start,
@@ -58,6 +59,7 @@ public class TaskInbound implements Runnable {
             final BlockingQueue<MsgIn> _receiveMsgQue) {
 
         this.p2pLOG = p2pLOG;
+        this.surveyLog = surveyLog;
         this.mgr = _mgr;
         this.selector = _selector;
         this.start = _start;
@@ -70,11 +72,15 @@ public class TaskInbound implements Runnable {
 
     @Override
     public void run() {
+    // for runtime survey information
+        long startTime, duration;
 
         // readBuffer buffer pre-alloc. @ max_body_size
         ByteBuffer readBuf = ByteBuffer.allocate(P2pConstant.MAX_BODY_SIZE);
 
         while (start.get()) {
+
+            startTime = System.nanoTime();
             try {
                 Thread.sleep(0, 1);
 
@@ -88,7 +94,10 @@ public class TaskInbound implements Runnable {
                 p2pLOG.error("inbound thread sleep exception.", e);
                 continue;
             }
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskInbound: sleep, duration = {} ns.", duration);
 
+            startTime = System.nanoTime();
             try {
                 Iterator<SelectionKey> keys = this.selector.selectedKeys().iterator();
                 while (keys.hasNext()) {
@@ -127,6 +136,8 @@ public class TaskInbound implements Runnable {
             } catch (ClosedSelectorException ex) {
                 p2pLOG.error("inbound ClosedSelectorException.", ex);
             }
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskInbound: work, duration = {} ns.", duration);
         }
 
         p2pLOG.info("p2p-pi shutdown");

@@ -34,7 +34,7 @@ public class TaskStatusTest {
 
         final AtomicBoolean ab = new AtomicBoolean(true);
 
-        TaskStatus ts = new TaskStatus(p2pLOG, ab, nodeMgr, "1", msgOutQue, msgInQue);
+        TaskStatus ts = new TaskStatus(p2pLOG,p2pLOG, ab, nodeMgr, "1", msgOutQue, msgInQue);
         assertNotNull(ts);
         when(nodeMgr.dumpNodeInfo(anyString(), anyBoolean())).thenReturn("get Status");
 
