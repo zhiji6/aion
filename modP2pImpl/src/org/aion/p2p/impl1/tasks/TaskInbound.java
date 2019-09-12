@@ -78,7 +78,7 @@ public class TaskInbound implements Runnable {
 
             startTime = System.nanoTime();
             try {
-                Thread.sleep(0, 1);
+//                Thread.sleep(0, 1);
 
                 if (this.selector.selectNow() == 0) {
                     continue;
@@ -86,9 +86,9 @@ public class TaskInbound implements Runnable {
             } catch (IOException | ClosedSelectorException e) {
                 p2pLOG.debug("inbound-select-exception.", e);
                 continue;
-            } catch (InterruptedException e) {
-                p2pLOG.error("inbound thread sleep exception.", e);
-                continue;
+//            } catch (InterruptedException e) {
+//                p2pLOG.error("inbound thread sleep exception.", e);
+//                continue;
             }
             duration = System.nanoTime() - startTime;
             surveyLog.info("TaskInbound: sleep, duration = {} ns.", duration);
