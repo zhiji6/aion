@@ -81,6 +81,8 @@ public class TaskInbound implements Runnable {
 //                Thread.sleep(0, 1);
 
                 if (this.selector.selectNow() == 0) {
+                    duration = System.nanoTime() - startTime;
+                    surveyLog.info("TaskInbound: selector, duration = {} ns.", duration);
                     continue;
                 }
             } catch (IOException | ClosedSelectorException e) {
@@ -91,7 +93,7 @@ public class TaskInbound implements Runnable {
 //                continue;
             }
             duration = System.nanoTime() - startTime;
-            surveyLog.info("TaskInbound: sleep, duration = {} ns.", duration);
+            surveyLog.info("TaskInbound: selector, duration = {} ns.", duration);
 
             startTime = System.nanoTime();
             try {
