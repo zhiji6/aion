@@ -11,10 +11,10 @@ public class P2pConstant {
             SEND_BUFFER_SIZE = 8192 * 1024, //
 
             // max p2p in package capped at 1.
-            READ_MAX_RATE = 1,
+            READ_MAX_RATE = 2,
 
             // max p2p in package capped for tx broadcast.
-            READ_MAX_RATE_TXBC = 20,
+            READ_MAX_RATE_TXBC = 40,
 
             // write queue timeout
             WRITE_MSG_TIMEOUT = 5000,
