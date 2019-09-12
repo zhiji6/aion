@@ -78,6 +78,7 @@ public class TaskSend implements Runnable {
                         mgr.executeTpe(
                                 new TaskWrite(
                                         p2pLOG,
+                                        surveyLog,
                                         node.getIdShort(),
                                         node.getChannel(),
                                         mo.getMsg(),
