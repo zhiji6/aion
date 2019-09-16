@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 public class P2pMgrTest {
 
     @Mock
-    private Logger p2pLOG;
+    private Logger p2pLOG, surveyLog;
 
     private String nodeId1 = UUID.randomUUID().toString();
     private String nodeId2 = UUID.randomUUID().toString();
@@ -44,11 +44,11 @@ public class P2pMgrTest {
         // to guarantee they don't receive the same port
 
         System.out.println("connector on: " + TestUtilities.formatAddr(id1, ip, port1));
-        P2pMgr connector = new P2pMgr(p2pLOG, 0, "", id1, ip, port1, nodes, false, 128, 128, false, 50);
+        P2pMgr connector = new P2pMgr(p2pLOG, surveyLog, 0, "", id1, ip, port1, nodes, false, 128, 128, false, 50);
 
         System.out.println("receiver on: " + TestUtilities.formatAddr(id2, ip, port2));
         P2pMgr receiver =
-                new P2pMgr(p2pLOG, 0, "", id2, ip, port2, new String[0], false, 128, 128, false, 50);
+                new P2pMgr(p2pLOG, surveyLog, 0, "", id2, ip, port2, new String[0], false, 128, 128, false, 50);
 
         return Map.entry(connector, receiver);
     }
@@ -58,7 +58,7 @@ public class P2pMgrTest {
 
         String[] nodes = new String[] {"p2p://" + nodeId1 + "@" + ip2 + ":" + port2};
 
-        P2pMgr p2p = new P2pMgr(p2pLOG, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
+        P2pMgr p2p = new P2pMgr(p2pLOG, surveyLog, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
 
         assertEquals(p2p.getTempNodesCount(), 0);
     }
@@ -68,7 +68,7 @@ public class P2pMgrTest {
 
         String[] nodes = new String[] {"p2p://" + nodeId2 + "@" + ip1 + ":" + port1};
 
-        P2pMgr p2p = new P2pMgr(p2pLOG, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
+        P2pMgr p2p = new P2pMgr(p2pLOG, surveyLog, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
         assertEquals(0, p2p.getTempNodesCount());
     }
 
@@ -82,7 +82,7 @@ public class P2pMgrTest {
                     "p2p://" + nodeId2 + "@" + ip2 + ":" + port2,
                 };
 
-        P2pMgr p2p = new P2pMgr(p2pLOG, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
+        P2pMgr p2p = new P2pMgr(p2pLOG, surveyLog, 0, "", nodeId1, ip1, port1, nodes, false, 128, 128, false, 50);
         assertEquals(p2p.getTempNodesCount(), 3);
     }
 }

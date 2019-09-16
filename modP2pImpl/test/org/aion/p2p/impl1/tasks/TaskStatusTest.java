@@ -16,7 +16,7 @@ import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
 
 public class TaskStatusTest {
-    @Mock private Logger p2pLOG;
+    @Mock private Logger p2pLOG, surveyLog;
 
     @Mock private BlockingQueue<MsgOut> msgOutQue;
 
@@ -34,7 +34,7 @@ public class TaskStatusTest {
 
         final AtomicBoolean ab = new AtomicBoolean(true);
 
-        TaskStatus ts = new TaskStatus(p2pLOG, ab, nodeMgr, "1", msgOutQue, msgInQue);
+        TaskStatus ts = new TaskStatus(p2pLOG, surveyLog, ab, nodeMgr, "1", msgOutQue, msgInQue);
         assertNotNull(ts);
         when(nodeMgr.dumpNodeInfo(anyString(), anyBoolean())).thenReturn("get Status");
 

@@ -24,7 +24,7 @@ import org.slf4j.Logger;
 
 public class TaskSendTest {
 
-    @Mock private Logger p2pLOG;
+    @Mock private Logger p2pLOG, surveyLog;
 
     @Mock private INodeMgr nodeMgr;
 
@@ -54,7 +54,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRun() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, r.nextInt(lane), sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, r.nextInt(lane), sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         Thread t = new Thread(ts);
@@ -70,7 +70,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRunMsgOutTimeout() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, r.nextInt(lane), sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, r.nextInt(lane), sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(r.nextInt(), "1", msg, Dest.OUTBOUND);
@@ -91,7 +91,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRunLane() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(1, "1", msg, Dest.OUTBOUND);
@@ -112,7 +112,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRun2() throws InterruptedException, IOException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(0, "1", msg, Dest.OUTBOUND);
@@ -144,7 +144,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRun3() throws InterruptedException, IOException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(0, "1", msg, Dest.ACTIVE);
@@ -176,7 +176,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRun4() throws InterruptedException, IOException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(0, "1", msg, Dest.INBOUND);
@@ -208,7 +208,7 @@ public class TaskSendTest {
     @Test(timeout = 10_000)
     public void testRunNullNode() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskSend ts = new TaskSend(p2pLOG, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
+        TaskSend ts = new TaskSend(p2pLOG, surveyLog, p2pMgr, 0, sendMsgQue, atb, nodeMgr, selector);
         assertNotNull(ts);
 
         MsgOut mo = new MsgOut(0, "1", msg, Dest.INBOUND);

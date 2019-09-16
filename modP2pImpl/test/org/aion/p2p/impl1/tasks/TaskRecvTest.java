@@ -21,7 +21,7 @@ import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
 
 public class TaskRecvTest {
-    @Mock private Logger p2pLOG;
+    @Mock private Logger p2pLOG, surveyLog;
 
     @Mock private BlockingQueue<MsgIn> recvMsgQue;
 
@@ -37,7 +37,7 @@ public class TaskRecvTest {
     @Test(timeout = 10_000)
     public void testRun() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskReceive ts = new TaskReceive(p2pLOG, atb, recvMsgQue, handler);
+        TaskReceive ts = new TaskReceive(p2pLOG, surveyLog, atb, recvMsgQue, handler);
         assertNotNull(ts);
 
         Thread t = new Thread(ts);
@@ -53,7 +53,7 @@ public class TaskRecvTest {
     @Test(timeout = 10_000)
     public void testRunMsgIn() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskReceive ts = new TaskReceive(p2pLOG, atb, recvMsgQue, handler);
+        TaskReceive ts = new TaskReceive(p2pLOG, surveyLog, atb, recvMsgQue, handler);
         assertNotNull(ts);
 
         int route = 1;
@@ -82,7 +82,7 @@ public class TaskRecvTest {
     @Test(expected = Exception.class, timeout = 10_000)
     public void testRunMsgIn2() throws InterruptedException {
         AtomicBoolean atb = new AtomicBoolean(true);
-        TaskReceive ts = new TaskReceive(p2pLOG, atb, recvMsgQue, handler);
+        TaskReceive ts = new TaskReceive(p2pLOG, surveyLog, atb, recvMsgQue, handler);
         assertNotNull(ts);
 
         int route = 1;
