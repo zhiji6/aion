@@ -33,7 +33,7 @@ final class TaskGetHeaders implements Runnable {
 
     private final SyncStats stats;
 
-    private final Logger log;
+    private final Logger log, surveyLog;
 
     private final Random random = new Random(System.currentTimeMillis());
 
@@ -43,13 +43,15 @@ final class TaskGetHeaders implements Runnable {
             BigInteger selfTd,
             Map<Integer, PeerState> peerStates,
             final SyncStats _stats,
-            Logger log) {
+            Logger log,
+            Logger surveyLog) {
         this.p2p = p2p;
         this.selfNumber = selfNumber;
         this.selfTd = selfTd;
         this.peerStates = peerStates;
         this.stats = _stats;
         this.log = log;
+        this.surveyLog = surveyLog;
     }
 
     /** Checks that the peer's total difficulty is higher than or equal to the local chain. */
@@ -67,6 +69,10 @@ final class TaskGetHeaders implements Runnable {
 
     @Override
     public void run() {
+        // for runtime survey information
+        long startTime, duration;
+
+        startTime = System.nanoTime();
         // get all active nodes
         Collection<INode> nodes = this.p2p.getActiveNodes().values();
 
@@ -78,9 +84,14 @@ final class TaskGetHeaders implements Runnable {
                         .collect(Collectors.toList());
 
         if (nodesFiltered.isEmpty()) {
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskGetHeaders: filter nodes, duration = {} ns.", duration);
             return;
         }
+        duration = System.nanoTime() - startTime;
+        surveyLog.info("TaskGetHeaders: filter nodes, duration = {} ns.", duration);
 
+        startTime = System.nanoTime();
         // pick one random node
         INode node = nodesFiltered.get(random.nextInt(nodesFiltered.size()));
 
@@ -177,5 +188,7 @@ final class TaskGetHeaders implements Runnable {
 
         // update timestamp
         state.setLastHeaderRequest(now);
+        duration = System.nanoTime() - startTime;
+        surveyLog.info("TaskGetHeaders: make request, duration = {} ns.", duration);
     }
 }

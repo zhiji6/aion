@@ -256,7 +256,7 @@ public final class SyncMgr {
                                 _selfTd,
                                 peerStates,
                                 stats,
-                                log));
+                                log, survey_log));
                 queueFull.set(false);
             }
         }
