@@ -248,7 +248,9 @@ public class TaskInbound implements Runnable {
         int remainBufAll = _cb.getBuffRemain() + cnt;
         ByteBuffer bufferAll = calBuffer(_cb, _readBuf, cnt);
 
+        int i = 1;
         do {
+            surveyLog.info("Iteration {}", i++);
             r = readMsg(_sk, bufferAll, remainBufAll);
             if (remainBufAll == r) {
                 break;
@@ -553,7 +555,8 @@ public class TaskInbound implements Runnable {
             int nodeIdHash = node.getIdHash();
             String nodeDisplayId = node.getIdShort();
             node.refreshTimestamp();
-            this.receiveMsgQue.offer(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
+            boolean stored = this.receiveMsgQue.offer(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
+            surveyLog.info("New msg in was{}stored.", stored ? " " : " not ");
         } else {
             p2pLOG.debug("handleKernelMsg can't find hash{}", _nodeIdHash);
         }

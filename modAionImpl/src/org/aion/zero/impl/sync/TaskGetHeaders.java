@@ -173,8 +173,8 @@ final class TaskGetHeaders implements Runnable {
         }
 
         // send request
-        if (log.isDebugEnabled()) {
-            log.debug(
+        if (log.isInfoEnabled()) {
+            log.info(
                     "<get-headers mode={} from-num={} size={} node={}>",
                     state.getMode(),
                     from,

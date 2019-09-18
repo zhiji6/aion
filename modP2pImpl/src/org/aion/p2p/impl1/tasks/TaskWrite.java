@@ -40,6 +40,8 @@ public class TaskWrite implements Runnable {
 
     @Override
     public void run() {
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+
         // for runtime survey information
         long startTime, duration;
 
@@ -105,7 +107,7 @@ public class TaskWrite implements Runnable {
                     t2 = System.nanoTime() - t1;
                 } while (buf.hasRemaining() && (t2 < MAX_BUFFER_WRITE_TIME));
                 duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskWrite: write, duration = {} ns.", duration);
+                surveyLog.info("TaskWrite: write msg {} node={}, duration = {} ns.", msg, nodeShortId, duration);
 
                 if (p2pLOG.isTraceEnabled() && (t2 > MIN_TRACE_BUFFER_WRITE_TIME)) {
                     p2pLOG.trace(

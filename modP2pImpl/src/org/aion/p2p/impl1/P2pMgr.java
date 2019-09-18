@@ -207,11 +207,9 @@ public final class P2pMgr implements IP2pMgr {
                         });
             }
 
-            for (int i = 0; i < WORKER; i++) {
-                Thread thrdOut = new Thread(getSendInstance(i), "p2p-out-" + i);
-                thrdOut.setPriority(Thread.NORM_PRIORITY);
-                thrdOut.start();
-            }
+            Thread thrdOut = new Thread(getSendInstance(), "p2p-out");
+            thrdOut.setPriority(Thread.NORM_PRIORITY);
+            thrdOut.start();
 
             for (int i = 0; i < WORKER; i++) {
                 Thread t = new Thread(getReceiveInstance(), "p2p-worker-" + i);
@@ -282,7 +280,10 @@ public final class P2pMgr implements IP2pMgr {
 
     @Override
     public void send(int _nodeIdHash, String _nodeIdShort, final Msg _msg) {
-        sendMsgQue.add(new MsgOut(_nodeIdHash, _nodeIdShort, _msg, Dest.ACTIVE));
+        boolean wasAdded = sendMsgQue.add(new MsgOut(_nodeIdHash, _nodeIdShort, _msg, Dest.ACTIVE));
+        if (!wasAdded) {
+            surveyLog.info("The message {} was not added to the queue.", _msg);
+        }
     }
 
     @Override
@@ -462,8 +463,8 @@ public final class P2pMgr implements IP2pMgr {
                 this.receiveMsgQue);
     }
 
-    private TaskSend getSendInstance(int i) {
-        return new TaskSend(p2pLOG, surveyLog, this, i, sendMsgQue, start, nodeMgr, selector);
+    private TaskSend getSendInstance() {
+        return new TaskSend(p2pLOG, surveyLog, this, 0, sendMsgQue, start, nodeMgr, selector);
     }
 
     private TaskReceive getReceiveInstance() {

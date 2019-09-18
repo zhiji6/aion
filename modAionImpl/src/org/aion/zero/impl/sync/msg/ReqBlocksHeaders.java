@@ -47,4 +47,12 @@ public final class ReqBlocksHeaders extends Msg {
         bb.putInt(this.take);
         return bb.array();
     }
+
+    @Override
+    public String toString() {
+        return "ReqBlocksHeaders{" +
+            "fromBlock=" + fromBlock +
+            ", take=" + take +
+            '}';
+    }
 }

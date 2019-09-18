@@ -54,8 +54,8 @@ public final class ResBlocksHeadersHandler extends Handler {
 
             List<BlockHeader> headers = resHeaders.getHeaders();
             if (headers != null && headers.size() > 0) {
-                if (log.isDebugEnabled()) {
-                    this.log.debug(
+                if (log.isInfoEnabled()) {
+                    this.log.info(
                             "<res-headers from-number={} size={} node={}>",
                             headers.get(0).getNumber(),
                             headers.size(),
