@@ -37,7 +37,7 @@ public class TaskReceive implements Runnable {
                 startTime = System.nanoTime();
                 MsgIn mi = this.receiveMsgQue.take();
                 duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskReceive: retrieve message, duration = {} ns.", duration);
+                surveyLog.info("TaskReceive: retrieve message route={}, duration = {} ns.", mi.getRoute(), duration);
 
                 startTime = System.nanoTime();
                 List<Handler> hs = this.handlers.get(mi.getRoute());

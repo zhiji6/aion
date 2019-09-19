@@ -6,13 +6,11 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -50,12 +48,9 @@ public final class SyncMgr {
 
     private final NetworkStatus networkStatus = new NetworkStatus();
     // peer syncing states
-    private final Map<Integer, PeerState> peerStates = new ConcurrentHashMap<>();
+    private SyncRequestManager syncRequestManager;
     // store the downloaded headers from network
     private final BlockingQueue<HeadersWrapper> downloadedHeaders = new LinkedBlockingQueue<>();
-    // store the headers whose bodies have been requested from corresponding peer
-    private final ConcurrentHashMap<Integer, HeadersWrapper> headersWithBodiesRequested =
-            new ConcurrentHashMap<>();
     // store the downloaded blocks that are ready to import
     private final BlockingQueue<BlocksWrapper> downloadedBlocks = new LinkedBlockingQueue<>();
     // store the hashes of blocks which have been successfully imported
@@ -185,6 +180,7 @@ public final class SyncMgr {
 
         long selfBest = chain.getBestBlock().getNumber();
         stats = new SyncStats(selfBest, _showStatus, showStatistics, maxActivePeers);
+        syncRequestManager = new SyncRequestManager(p2pMgr, stats, log, survey_log);
 
         syncGb =
                 new Thread(
@@ -192,10 +188,10 @@ public final class SyncMgr {
                                 p2pMgr,
                                 start,
                                 downloadedHeaders,
-                                headersWithBodiesRequested,
-                                peerStates,
+                            syncRequestManager,
                                 stats,
-                                log, survey_log),
+                                log,
+                                survey_log),
                         "sync-gb");
         syncGb.start();
         syncIb =
@@ -208,7 +204,7 @@ public final class SyncMgr {
                                 stats,
                                 downloadedBlocks,
                                 importedBlockHashes,
-                                peerStates,
+                            syncRequestManager,
                                 _slowImportTime,
                                 _compactFrequency),
                         "sync-ib");
@@ -226,7 +222,7 @@ public final class SyncMgr {
                                     networkStatus,
                                     stats,
                                     p2pMgr,
-                                    peerStates,
+                                syncRequestManager,
                                     showStatistics,
                                     AionLoggerFactory.getLogger(LogEnum.P2P.name())),
                             "sync-ss");
@@ -245,20 +241,11 @@ public final class SyncMgr {
     private void getHeaders(BigInteger _selfTd) {
         if (downloadedBlocks.size() > blocksQueueMax) {
             if (queueFull.compareAndSet(false, true)) {
-                log.debug("Downloaded blocks queue is full. Stop requesting headers");
+                log.error("Downloaded blocks queue is full. Stop requesting headers");
             }
         } else {
-            if (!workers.isShutdown()) {
-                workers.submit(
-                        new TaskGetHeaders(
-                                p2pMgr,
-                                chain.getBestBlock().getNumber(),
-                                _selfTd,
-                                peerStates,
-                                stats,
-                                log, survey_log));
-                queueFull.set(false);
-            }
+            syncRequestManager.makeHeadersRequests(chain.getBestBlock().getNumber(), _selfTd);
+            queueFull.set(false);
         }
     }
 
@@ -334,11 +321,11 @@ public final class SyncMgr {
      */
     public void validateAndAddBlocks(
             int _nodeIdHashcode, String _displayId, final List<byte[]> _bodies) {
+        if (_bodies == null) return;
 
-        HeadersWrapper hw = this.headersWithBodiesRequested.remove(_nodeIdHashcode);
-        if (hw == null || _bodies == null) {
-            return;
-        }
+        // the requests are made such that the size varies to better map headers to bodies
+        HeadersWrapper hw = syncRequestManager.matchHeaders(_nodeIdHashcode, _bodies.size());
+        if (hw == null) return;
 
         // assemble batch
         List<BlockHeader> headers = hw.getHeaders();
@@ -348,7 +335,7 @@ public final class SyncMgr {
         while (headerIt.hasNext() && bodyIt.hasNext()) {
             AionBlock block = AionBlock.createBlockFromNetwork((A0BlockHeader) headerIt.next(), bodyIt.next());
             if (block == null) {
-                log.error("<assemble-and-validate-blocks node={}>", _displayId);
+                log.error("<assemble-and-validate-blocks node={} size={}>", _displayId, _bodies.size());
                 break;
             } else {
                 blocks.add(block);
@@ -400,8 +387,13 @@ public final class SyncMgr {
         }
     }
 
+    /**
+     * Returns a copy of the active peer states.
+     *
+     * @return a copy of the active peer states
+     */
     public Map<Integer, PeerState> getPeerStates() {
-        return new HashMap<>(this.peerStates);
+        return syncRequestManager.getPeerStates();
     }
 
     public SyncStats getSyncStats() {

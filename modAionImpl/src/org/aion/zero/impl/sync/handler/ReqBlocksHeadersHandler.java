@@ -52,8 +52,8 @@ public final class ReqBlocksHeadersHandler extends Handler {
         if (reqHeaders != null) {
             long fromBlock = reqHeaders.getFromBlock();
             int take = reqHeaders.getTake();
-            if (log.isDebugEnabled()) {
-                this.log.debug(
+            if (log.isInfoEnabled()) {
+                this.log.info(
                         "<req-headers from-number={} size={} node={}>",
                         fromBlock,
                         take,

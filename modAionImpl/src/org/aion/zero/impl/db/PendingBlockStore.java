@@ -1,9 +1,8 @@
 package org.aion.zero.impl.db;
 
+import static org.aion.p2p.P2pConstant.MAX_REQUEST_SIZE;
 import static org.aion.zero.impl.db.DatabaseUtils.connectAndOpen;
 import static org.aion.zero.impl.db.DatabaseUtils.verifyAndBuildPath;
-import static org.aion.p2p.P2pConstant.LARGE_REQUEST_SIZE;
-import static org.aion.p2p.P2pConstant.STEP_COUNT;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.Closeable;
@@ -93,8 +92,6 @@ public class PendingBlockStore implements Closeable {
     // tracking the status: with access managed by the `internalLock`
     private Map<ByteArrayWrapper, QueueInfo> status;
     private long maxRequest = 0L, minStatus = Long.MAX_VALUE, maxStatus = 0L;
-
-    private static final int FORWARD_SKIP = STEP_COUNT * LARGE_REQUEST_SIZE;
 
     /**
      * Constructor. Initializes the databases used for storage. If the database configuration used
@@ -726,7 +723,7 @@ public class PendingBlockStore implements Closeable {
             if (maxStatus == 0) {
                 // optimistic jump forward
                 base = current > maxRequest ? current : maxRequest;
-                base += FORWARD_SKIP;
+                base += MAX_REQUEST_SIZE;
             } else {
                 // try to fill in the gaps between status imports
                 if (current > minStatus) {
@@ -747,7 +744,7 @@ public class PendingBlockStore implements Closeable {
                         // update minimum status value
                         // since this request will take us that far forward
                         // NOTE: minStatus does not need to be < maxStatus
-                        minStatus = base - 1 + FORWARD_SKIP;
+                        minStatus = base - 1 + MAX_REQUEST_SIZE;
                     } else {
                         // since we've already passed the last min status
                         minStatus = current;
@@ -756,13 +753,13 @@ public class PendingBlockStore implements Closeable {
 
                 // same as initialization => no change from gap fill functionality
                 if (base == -1) {
-                    if (maxStatus < current + LARGE_REQUEST_SIZE) {
+                    if (maxStatus < current + MAX_REQUEST_SIZE) {
                         // signal to switch back to / stay in NORMAL mode
                         base = current;
                     } else {
                         // regular jump forward
                         base = current > maxRequest ? current : maxRequest;
-                        base += FORWARD_SKIP;
+                        base += MAX_REQUEST_SIZE;
                     }
                 }
             }

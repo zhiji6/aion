@@ -1,7 +1,5 @@
 package org.aion.p2p.impl1.tasks;
 
-import static org.aion.p2p.impl1.P2pMgr.txBroadCastRoute;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
@@ -45,6 +43,9 @@ public class TaskInbound implements Runnable {
     private final BlockingQueue<MsgOut> sendMsgQue;
     private final ResHandshake1 cachedResHandshake1;
     private final BlockingQueue<MsgIn> receiveMsgQue;
+
+    private static final int ACT_BROADCAST_BLOCK = 7;
+    private static final int CTRL_SYNC = 1;
 
     public TaskInbound(
             final Logger p2pLOG,
@@ -310,12 +311,19 @@ public class TaskInbound implements Runnable {
         _cb.refreshHeader();
         _cb.refreshBody();
 
-        boolean underRC =
-                _cb.shouldRoute(
-                        h.getRoute(),
-                        ((h.getRoute() == txBroadCastRoute)
-                                ? P2pConstant.READ_MAX_RATE_TXBC
-                                : P2pConstant.READ_MAX_RATE));
+        int maxRequestsPerSecond = 0;
+
+        // TODO: refactor since it requires knowledge regarding message types
+        if (h.getCtrl() == CTRL_SYNC && h.getAction() == ACT_BROADCAST_BLOCK) {
+            maxRequestsPerSecond = P2pConstant.READ_MAX_RATE;
+        } else {
+            maxRequestsPerSecond =
+                    h.getAction() % 2 == 0
+                            ? P2pConstant.SEND_MAX_RATE_TXBC // requests have an even number
+                            : P2pConstant.RECEIVE_MAX_RATE_TXBC; // responses have an odd number
+        }
+
+        boolean underRC = _cb.shouldRoute(h.getRoute(), maxRequestsPerSecond);
 
         if (!underRC) {
             if (p2pLOG.isDebugEnabled()) {
@@ -556,7 +564,7 @@ public class TaskInbound implements Runnable {
             String nodeDisplayId = node.getIdShort();
             node.refreshTimestamp();
             boolean stored = this.receiveMsgQue.offer(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
-            surveyLog.info("New msg in was{}stored.", stored ? " " : " not ");
+            surveyLog.info("New msg in from node={} with route={} was{}stored.", nodeDisplayId, _route, stored ? " " : " not ");
         } else {
             p2pLOG.debug("handleKernelMsg can't find hash{}", _nodeIdHash);
         }

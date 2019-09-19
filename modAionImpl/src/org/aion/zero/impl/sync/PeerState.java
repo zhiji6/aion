@@ -1,10 +1,12 @@
 package org.aion.zero.impl.sync;
 
-import static org.aion.p2p.P2pConstant.STEP_COUNT;
+import static org.aion.p2p.P2pConstant.MAX_REQUEST_SIZE;
+import static org.aion.p2p.P2pConstant.SEND_MAX_RATE_TXBC;
 
-import java.util.Objects;
+import java.util.Arrays;
+import java.util.TreeSet;
 
-public class PeerState {
+public final class PeerState {
 
     public enum Mode {
         /**
@@ -35,57 +37,75 @@ public class PeerState {
          * @implNote When switching to this mode it is not necessary to set the base value. The base
          *     will automatically be set to the current best block.
          */
-        THUNDER
+        THUNDER;
+
+        /**
+         * Method for checking if the mode is one of the fast ones, namely {@link Mode#LIGHTNING}
+         * and {@link Mode#THUNDER}.
+         *
+         * @return {@code true} when one of the fast modes, {@code false} otherwise.
+         */
+        public boolean isFast() {
+            return this == Mode.LIGHTNING || this == Mode.THUNDER;
+        }
     }
 
-    // TODO: enforce rules on this
-    public enum State {
-        /** The initial state. */
-        INITIAL,
-
-        /** Status request, waiting for response. */
-        STATUS_REQUESTED,
-
-        /** Block headers request, waiting for response. */
-        HEADERS_REQUESTED,
-
-        /** Block bodies request, waiting for response. */
-        BODIES_REQUESTED,
-    }
+    // Reference to corresponding node
+    private int id;
+    private String alias;
 
     // The syncing mode and the base block number
-    private Mode mode;
+    private Mode mode = Mode.NORMAL;
     private long base;
-
-    // used in FORWARD mode to prevent endlessly importing EXISTing blocks
-    // compute how many times to go forward without importing a new block
-    private int repeated;
+    private int size = MAX_REQUEST_SIZE;
 
     // The syncing status
-    private State state;
     private long lastBestBlock = 0;
-    private long lastHeaderRequest;
+    private TreeSet<Long> headerRequests = new TreeSet<>();
+
+    /** Used by the copy factory method */
+    private PeerState() {}
 
     /** Creates a new peer state. */
-    public PeerState(Mode mode, long base) {
+    public PeerState(int id, String alias, long lastBestBlock) {
+        this.id = id;
+        this.alias = alias;
+        this.lastBestBlock = lastBestBlock;
+    }
+
+    public PeerState newCopy() {
+        PeerState newState = new PeerState();
+        newState.id = this.id;
+        newState.alias = this.alias;
+        newState.mode = this.mode;
+        newState.base = this.base;
+        newState.lastBestBlock = this.lastBestBlock;
+        newState.headerRequests.addAll(headerRequests);
+        return newState;
+    }
+
+    public int getId() {
+        return this.id;
+    }
+
+    public String getDisplayName() {
+        return this.alias;
+    }
+
+    public int getSize() {
+        return this.size;
+    }
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
+    public Mode getMode() {
+        return mode;
+    }
+
+    public void setMode(Mode mode) {
         this.mode = mode;
-        this.base = base;
-
-        this.state = State.INITIAL;
-    }
-
-    /** Copy constructor. */
-    public PeerState(PeerState _state) {
-        this.copy(_state);
-    }
-
-    public void copy(PeerState _state) {
-        this.mode = _state.mode;
-        this.base = _state.base;
-        this.repeated = _state.repeated;
-        this.state = _state.state;
-        this.lastBestBlock = _state.lastBestBlock;
-        this.lastHeaderRequest = _state.lastHeaderRequest;
     }
 
     public long getLastBestBlock() {
@@ -96,25 +116,6 @@ public class PeerState {
         this.lastBestBlock = lastBestBlock;
     }
 
-    public Mode getMode() {
-        return mode;
-    }
-
-    public void setMode(Mode mode) {
-        this.mode = mode;
-        this.resetRepeated();
-    }
-
-    /**
-     * Method for checking if the state is in one of the fast modes, namely {@link Mode#LIGHTNING}
-     * and {@link Mode#THUNDER}.
-     *
-     * @return {@code true} when the state is in one of the fast modes, {@code false} otherwise.
-     */
-    public boolean isInFastMode() {
-        return mode == Mode.LIGHTNING || mode == Mode.THUNDER;
-    }
-
     public long getBase() {
         return base;
     }
@@ -123,80 +124,46 @@ public class PeerState {
         this.base = base;
     }
 
-    public State getState() {
-        return state;
+    /** Stores the nano time of the last header request. */
+    public void addHeaderRequest(long latestStatusRequest) {
+        headerRequests.add(latestStatusRequest);
     }
 
-    public void setState(State state) {
-        this.state = state;
-    }
+    // slightly under the actual limit to avoid issues on the other end
+    private static final int MAX_REQUESTS_PER_SECOND = SEND_MAX_RATE_TXBC - 2;
+    private static final int ONE_SECOND = 1_000_000_000;
 
-    public long getLastHeaderRequest() {
-        return lastHeaderRequest;
-    }
-
-    public void setLastHeaderRequest(long lastStatusRequest) {
-        this.state = State.HEADERS_REQUESTED;
-        this.lastHeaderRequest = lastStatusRequest;
-    }
-
-    public void resetLastHeaderRequest() {
-        this.state = State.INITIAL;
-        this.lastHeaderRequest = 0;
-    }
-
-    public boolean isUnderRepeatThreshold() {
-        return repeated < STEP_COUNT;
-    }
-
-    private void resetRepeated() {
-        this.repeated = 0;
-    }
-
-    public void incRepeated() {
-        this.repeated++;
-    }
-
-    public int getRepeated() {
-        return repeated;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    /** Determines if a request can be sent based on the route cool down. */
+    public boolean isAvailable() {
+        if (headerRequests.size() < MAX_REQUESTS_PER_SECOND) {
+            // have not reached the limit of requests
             return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        PeerState peerState = (PeerState) o;
-        return base == peerState.base
-                && repeated == peerState.repeated
-                && lastBestBlock == peerState.lastBestBlock
-                && lastHeaderRequest == peerState.lastHeaderRequest
-                && mode == peerState.mode
-                && state == peerState.state;
-    }
+        } else {
+            long now = System.nanoTime();
+            long first = headerRequests.first();
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(mode, base, repeated, state, lastBestBlock, lastHeaderRequest);
+            if ((now - first) <= ONE_SECOND) {
+                // less than a second has passed since the first request
+                return false;
+            } else {
+                // more than 1 second has passed, so we can request again
+                // the first request is no longer useful, so we remove it to keep the size capped
+                headerRequests.remove(first);
+                return true;
+            }
+        }
     }
 
     @Override
     public String toString() {
-        return "{"
-                + mode.toString().charAt(0)
-                + ", "
-                + state.toString().substring(0, 2)
-                + ", "
-                + base
-                + ", "
-                + repeated
-                + ", "
-                + lastBestBlock
-                + ", "
-                + lastHeaderRequest
-                + '}';
+        return "PeerState{" +
+            "id=" + id +
+            ", alias='" + alias + '\'' +
+            ", mode=" + mode +
+            ", base=" + base +
+            ", size=" + size +
+            ", lastBestBlock=" + lastBestBlock +
+            ", lastHeaderRequestSize=" + headerRequests.size() +
+            '}';
     }
 }

@@ -84,10 +84,11 @@ class ChannelBuffer {
             } else {
                 if (p2pLOG.isDebugEnabled()) {
                     p2pLOG.debug(
-                            "route-cooldown={} node={} count={}",
+                            "route-cooldown={} node={} count={} max-req={}",
                             _route,
                             this.getDisplayId(),
-                            prev.count);
+                            prev.count,
+                            _maxReqsPerSec);
                 }
             }
 

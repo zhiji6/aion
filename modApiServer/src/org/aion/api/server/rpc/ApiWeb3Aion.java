@@ -1714,12 +1714,12 @@ public class ApiWeb3Aion extends ApiAion {
 
             PeerState ps = peerState.getValue();
             peerObj.put("idHash", peerState.getKey());
-            peerObj.put("lastRequestTimestamp", ps.getLastHeaderRequest());
-            peerObj.put(
-                    "lastRequestTimestampUTC",
-                    Instant.ofEpochMilli(ps.getLastHeaderRequest())
-                            .atOffset(ZoneOffset.UTC)
-                            .toString());
+//            peerObj.put("lastRequestTimestamp", ps.getLastHeaderRequest());
+//            peerObj.put(
+//                    "lastRequestTimestampUTC",
+//                    Instant.ofEpochMilli(ps.getLastHeaderRequest())
+//                            .atOffset(ZoneOffset.UTC)
+//                            .toString());
             peerObj.put("mode", ps.getMode().toString());
             peerObj.put("base", ps.getBase());
 

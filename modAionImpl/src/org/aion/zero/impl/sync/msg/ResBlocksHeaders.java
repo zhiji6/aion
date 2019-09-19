@@ -55,4 +55,14 @@ public final class ResBlocksHeaders extends Msg {
         byte[][] bytesArray = tempList.toArray(new byte[tempList.size()][]);
         return RLP.encodeList(bytesArray);
     }
+
+    @Override
+    public String toString() {
+        return "ResBlocksHeaders{"
+                + "size="
+                + blockHeaders.size()
+                + "first="
+                + blockHeaders.get(0).getNumber()
+                + '}';
+    }
 }
