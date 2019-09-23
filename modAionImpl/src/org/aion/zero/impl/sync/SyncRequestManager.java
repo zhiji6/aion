@@ -260,8 +260,9 @@ public class SyncRequestManager {
                 // update the maximum request height
                 requestHeight = Math.max(requestHeight, nextFrom + nextSize);
                 // set up for next peer
-                // nextFrom = selfBest + MAX_DIFF < requestHeight ? nextFrom + nextSize : requestHeight;
-                nextFrom = requestHeight;
+                nextFrom =
+                        requestHeight > selfBest + MAX_DIFF ? nextFrom + nextSize : requestHeight;
+                // nextFrom = requestHeight;
                 nextMode = LIGHTNING;
             }
 
