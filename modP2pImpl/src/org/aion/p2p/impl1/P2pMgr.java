@@ -41,7 +41,6 @@ import org.aion.p2p.impl1.tasks.MsgOut;
 import org.aion.p2p.impl1.tasks.TaskClear;
 import org.aion.p2p.impl1.tasks.TaskConnectPeers;
 import org.aion.p2p.impl1.tasks.TaskInbound;
-import org.aion.p2p.impl1.tasks.TaskReceive;
 import org.aion.p2p.impl1.tasks.TaskSend;
 import org.aion.p2p.impl1.tasks.TaskStatus;
 import org.apache.commons.collections4.map.LRUMap;
@@ -206,12 +205,6 @@ public final class P2pMgr implements IP2pMgr {
             Thread thrdOut = new Thread(getSendInstance(), "p2p-out");
             thrdOut.setPriority(Thread.NORM_PRIORITY);
             thrdOut.start();
-
-            for (int i = 0; i < WORKER; i++) {
-                Thread t = new Thread(getReceiveInstance(), "p2p-worker-" + i);
-                t.setPriority(Thread.NORM_PRIORITY);
-                t.start();
-            }
 
             if (upnpEnable) {
                 scheduledWorkers.scheduleWithFixedDelay(
@@ -455,16 +448,11 @@ public final class P2pMgr implements IP2pMgr {
                 this.nodeMgr,
                 this.handlers,
                 this.sendMsgQue,
-                cachedResHandshake1,
-                this.receiveMsgQue);
+                cachedResHandshake1);
     }
 
     private TaskSend getSendInstance() {
         return new TaskSend(p2pLOG, surveyLog, this, 0, sendMsgQue, start, nodeMgr, selector);
-    }
-
-    private TaskReceive getReceiveInstance() {
-        return new TaskReceive(p2pLOG, surveyLog, start, receiveMsgQue, handlers);
     }
 
     private TaskStatus getStatusInstance() {

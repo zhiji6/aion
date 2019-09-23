@@ -42,7 +42,6 @@ public class TaskInbound implements Runnable {
     private final AtomicBoolean start;
     private final BlockingQueue<MsgOut> sendMsgQue;
     private final ResHandshake1 cachedResHandshake1;
-    private final BlockingQueue<MsgIn> receiveMsgQue;
 
     private static final int ACT_BROADCAST_BLOCK = 7;
     private static final int CTRL_SYNC = 1;
@@ -56,8 +55,7 @@ public class TaskInbound implements Runnable {
             final INodeMgr _nodeMgr,
             final Map<Integer, List<Handler>> _handlers,
             final BlockingQueue<MsgOut> _sendMsgQue,
-            final ResHandshake1 _cachedResHandshake1,
-            final BlockingQueue<MsgIn> _receiveMsgQue) {
+            final ResHandshake1 _cachedResHandshake1) {
 
         this.p2pLOG = p2pLOG;
         this.surveyLog = surveyLog;
@@ -68,7 +66,6 @@ public class TaskInbound implements Runnable {
         this.handlers = _handlers;
         this.sendMsgQue = _sendMsgQue;
         this.cachedResHandshake1 = _cachedResHandshake1;
-        this.receiveMsgQue = _receiveMsgQue;
     }
 
     @Override
@@ -563,10 +560,44 @@ public class TaskInbound implements Runnable {
             int nodeIdHash = node.getIdHash();
             String nodeDisplayId = node.getIdShort();
             node.refreshTimestamp();
-            boolean stored = this.receiveMsgQue.offer(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
-            surveyLog.info("New msg in from node={} with route={} was{}stored.", nodeDisplayId, _route, stored ? " " : " not ");
+            surveyLog.info("New msg received from node={} with route={}.", nodeDisplayId, _route);
+            taskReceive(new MsgIn(nodeIdHash, nodeDisplayId, _route, _msgBytes));
         } else {
             p2pLOG.debug("handleKernelMsg can't find hash{}", _nodeIdHash);
+        }
+    }
+
+    private void taskReceive(final MsgIn mi) {
+        // for runtime survey information
+        long startTime, duration;
+
+        try {
+            startTime = System.nanoTime();
+            List<Handler> hs = this.handlers.get(mi.getRoute());
+            if (hs == null) {
+                duration = System.nanoTime() - startTime;
+                surveyLog.info("TaskReceive: process message, duration = {} ns.", duration);
+                return;
+            }
+            for (Handler hlr : hs) {
+                if (hlr == null) {
+                    continue;
+                }
+
+                try {
+                    hlr.receive(mi.getNodeId(), mi.getDisplayId(), mi.getMsg());
+                } catch (Exception e) {
+                    if (p2pLOG.isDebugEnabled()) {
+                        p2pLOG.debug("TaskReceive exception.", e);
+                    }
+                }
+            }
+            duration = System.nanoTime() - startTime;
+            surveyLog.info("TaskReceive: process message, duration = {} ns.", duration);
+        } catch (Exception e) {
+            if (p2pLOG.isDebugEnabled()) {
+                p2pLOG.debug("TaskReceive exception.", e);
+            }
         }
     }
 
