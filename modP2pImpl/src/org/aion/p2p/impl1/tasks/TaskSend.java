@@ -214,6 +214,7 @@ public class TaskSend implements Runnable {
             }
 
             ByteBuffer buf = ByteBuffer.allocate(headerBytes.length + bodyLen);
+            buf.clear();
             buf.put(headerBytes);
             if (bodyBytes != null) {
                 buf.put(bodyBytes);
@@ -222,11 +223,11 @@ public class TaskSend implements Runnable {
             duration = System.nanoTime() - startTime;
             surveyLog.info("TaskWrite: setup for write, duration = {} ns.", duration);
 
-            long t1 = System.nanoTime(), t2;
+            long t1 = System.nanoTime(), t2 = 0;
             int wrote = 0;
             try {
                 startTime = System.nanoTime();
-                do {
+                while (buf.hasRemaining()) {
                     int result = sc.write(buf);
                     wrote += result;
 
@@ -237,9 +238,9 @@ public class TaskSend implements Runnable {
                     }
 
                     t2 = System.nanoTime() - t1;
-                } while (buf.hasRemaining() && (t2 < MAX_BUFFER_WRITE_TIME));
+                }
                 duration = System.nanoTime() - startTime;
-                surveyLog.info("TaskWrite: write msg {} node={}, duration = {} ns.", msg, nodeShortId, duration);
+                surveyLog.info("TaskWrite: write msg {} node={} wrote={}, duration = {} ns.", msg, nodeShortId, duration);
 
                 if (p2pLOG.isTraceEnabled() && (t2 > MIN_TRACE_BUFFER_WRITE_TIME)) {
                     p2pLOG.trace(
