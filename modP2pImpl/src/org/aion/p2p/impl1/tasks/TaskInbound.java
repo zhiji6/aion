@@ -234,10 +234,9 @@ public class TaskInbound implements Runnable {
 
         int r;
         int cnt = 0;
-        do {
-            r = sc.read(_readBuf);
+        while ((r = sc.read(_readBuf)) > 0) {
             cnt += r;
-        } while (r > 0);
+        }
 
         if (cnt < 1) {
             return;

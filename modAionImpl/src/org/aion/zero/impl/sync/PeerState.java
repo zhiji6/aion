@@ -130,7 +130,7 @@ public final class PeerState {
     }
 
     // slightly under the actual limit to avoid issues on the other end
-    private static final int MAX_REQUESTS_PER_SECOND = SEND_MAX_RATE_TXBC - 2;
+    private static final int MAX_REQUESTS_PER_SECOND = 2;
     private static final int ONE_SECOND = 1_000_000_000;
 
     /** Determines if a request can be sent based on the route cool down. */
