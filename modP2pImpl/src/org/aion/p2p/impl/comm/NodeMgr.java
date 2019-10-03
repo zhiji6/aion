@@ -233,9 +233,8 @@ public class NodeMgr implements INodeMgr {
         return new ArrayList<>(activeNodes.values());
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public HashMap getActiveNodesMap() {
+    public Map<Integer, INode> getActiveNodesMap() {
         return new HashMap<>(activeNodes);
     }
 
