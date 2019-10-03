@@ -2,18 +2,15 @@ package org.aion.p2p.impl.comm;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 import org.aion.p2p.INode;
 import org.aion.p2p.INodeMgr;
 import org.aion.p2p.IP2pMgr;
@@ -30,9 +27,7 @@ public class NodeMgr implements INodeMgr {
     private final int maxTempNodes;
     private final Set<String> seedIps = new HashSet<>();
     private final IP2pMgr p2pMgr;
-    private final ReentrantLock tempNodesLock = new ReentrantLock();
-    private final Map<Integer, INode> tempNodes =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<Integer, INode> tempNodes = new ConcurrentHashMap<>();
     private final Map<Integer, INode> outboundNodes = new ConcurrentHashMap<>();
     private final Map<Integer, INode> inboundNodes = new ConcurrentHashMap<>();
     private final Map<Integer, INode> activeNodes = new ConcurrentHashMap<>();
@@ -142,11 +137,9 @@ public class NodeMgr implements INodeMgr {
 
     /** @param _n Node */
     @Override
-    public void addTempNode(final INode _n) throws InterruptedException {
+    public void addTempNode(final INode _n) {
 
         if (_n == null) return;
-
-        tempNodesLock.lockInterruptibly();
 
         try {
             if (tempNodes.size() < maxTempNodes
@@ -156,8 +149,6 @@ public class NodeMgr implements INodeMgr {
             }
         } catch (Exception e) {
             p2pLOG.error("<addTempNode exception>", e);
-        } finally {
-            tempNodesLock.unlock();
         }
     }
 
@@ -178,10 +169,8 @@ public class NodeMgr implements INodeMgr {
     }
 
     @Override
-    public INode tempNodesTake() throws InterruptedException {
+    public INode tempNodesTake() {
         INode node = null;
-
-        tempNodesLock.lockInterruptibly();
 
         if (tempNodes.isEmpty()) {
             return null;
@@ -191,8 +180,6 @@ public class NodeMgr implements INodeMgr {
             node = tempNodes.remove(tempNodes.keySet().iterator().next());
         } catch (Exception e) {
             p2pLOG.error("<tempNodesTake Exception>", e);
-        } finally {
-            tempNodesLock.unlock();
         }
 
         return node;

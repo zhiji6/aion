@@ -105,7 +105,7 @@ public class NodeMgrTest {
     }
 
     @Test(timeout = 10_000)
-    public void testTempNode() throws InterruptedException {
+    public void testTempNode() {
         nMgr.addTempNode(node);
         assertEquals(1, nMgr.tempNodesSize());
 
@@ -121,7 +121,7 @@ public class NodeMgrTest {
     }
 
     @Test(timeout = 30_000)
-    public void testTempNodeMax_128() throws InterruptedException {
+    public void testTempNodeMax_128() {
 
         String[] nodes_max = new String[130];
         int ip = 0;
@@ -142,7 +142,7 @@ public class NodeMgrTest {
     }
 
     @Test(timeout = 30_000)
-    public void testTempNodesTake() throws InterruptedException {
+    public void testTempNodesTake() {
 
         int port2 = 30305;
         String[] nodes =
@@ -173,7 +173,7 @@ public class NodeMgrTest {
     }
 
     @Test(timeout = 30_000)
-    public void testTempNodeMax_Any() throws InterruptedException {
+    public void testTempNodeMax_Any() {
 
         NodeMgr mgr = new NodeMgr(p2p, 512, 512, LOGGER);
         String[] nodes_max = new String[512];
@@ -549,11 +549,7 @@ public class NodeMgrTest {
                     @Override
                     public void run() {
                         while (start.get()) {
-                            try {
-                                nMgr.addTempNode(genNode());
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
+                            nMgr.addTempNode(genNode());
                             try {
                                 Thread.sleep(r.nextInt(5) + 20);
                             } catch (InterruptedException e) {
@@ -596,12 +592,7 @@ public class NodeMgrTest {
                                     e.printStackTrace();
                                 }
 
-                                INode node = null;
-                                try {
-                                    node = nMgr.tempNodesTake();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
+                                INode node = nMgr.tempNodesTake();
                                 if (node == null) {
                                     continue;
                                 }
@@ -620,12 +611,7 @@ public class NodeMgrTest {
                                 } catch (InterruptedException e) {
                                     e.printStackTrace();
                                 }
-                                INode node = null;
-                                try {
-                                    node = nMgr.tempNodesTake();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
+                                INode node = nMgr.tempNodesTake();
                                 if (node == null) {
                                     continue;
                                 }
