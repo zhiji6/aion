@@ -8,15 +8,18 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Function;
 import org.aion.base.AionTransaction;
+import org.aion.rpc.client.IDGeneratorStrategy;
+import org.aion.rpc.client.SimpleIDGenerator;
 import org.aion.rpc.errors.RPCExceptions.RPCException;
 import org.aion.rpc.server.RPCServerMethods;
 import org.aion.rpc.types.RPCTypes.Request;
+import org.aion.rpc.types.RPCTypes.VersionType;
 import org.aion.rpc.types.RPCTypesConverter.RequestConverter;
 import org.mockito.ArgumentMatcher;
 
 public class RPCTestUtils {
 
-
+    private static final IDGeneratorStrategy idGenerator = new SimpleIDGenerator();
     @FunctionalInterface
     public interface ThrowingSupplier<T>{
         T get() throws Exception;
@@ -72,5 +75,9 @@ public class RPCTestUtils {
                                                 left.getDestinationAddress(),
                                                 right.getDestinationAddress())// compare destination
                                         && Arrays.equals(left.getData(), right.getData())));// compare input data
+    }
+
+    public static Request buildRequest(String method, Object params){
+        return new Request(idGenerator.generateID(), method, params, VersionType.Version2);
     }
 }
