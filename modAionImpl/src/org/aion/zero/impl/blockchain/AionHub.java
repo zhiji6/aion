@@ -11,6 +11,7 @@ import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import org.aion.base.AionTxReceipt;
 import org.aion.base.ConstantUtil;
 import org.aion.evtmgr.EventMgrModule;
 import org.aion.evtmgr.IEvent;
@@ -32,7 +33,7 @@ import org.aion.p2p.impl1.P2pMgr;
 import org.aion.util.bytes.ByteUtil;
 import org.aion.zero.impl.db.AionBlockStore;
 import org.aion.zero.impl.pendingState.AionPendingStateImpl;
-import org.aion.zero.impl.types.A0BlockHeader;
+import org.aion.zero.impl.pendingState.IPendingState;
 import org.aion.zero.impl.types.AionBlock;
 import org.aion.zero.impl.types.AionGenesis;
 import org.aion.zero.impl.config.CfgAion;
@@ -117,7 +118,6 @@ public class AionHub {
         // for this reason we pass in null when a new instance is required
         this.blockchain = _blockchain == null ? new AionBlockchainImpl(cfg, forTest) : _blockchain;
         blockchain.setEventManager(this.eventMgr);
-
         this.repository = _repository;
 
         this.mempool = AionPendingStateImpl.create(cfg, blockchain, repository, forTest);
@@ -206,6 +206,7 @@ public class AionHub {
         callback.updateBlockStatus(blockchain.getBestBlock().getNumber(), blockchain.getBestBlock().getHash(), blockchain.getTotalDifficulty());
 
         blockchain.setNodeStatusCallback(callback);
+        blockchain.setBestBlockImportCallback(new BestBlockImportCallback(mempool));
     }
 
     public static AionHub createForTesting(
@@ -667,5 +668,22 @@ public class AionHub {
         void updateBlockStatus(long number, byte[] hash, BigInteger td) {
             p2pMgr.updateChainInfo(number, hash, td);
         }
+    }
+
+    class BestBlockImportCallback {
+        final IPendingState mempool;
+
+        BestBlockImportCallback(IPendingState mempool) {
+            if (mempool == null) {
+                throw new IllegalStateException("Mempool input is null!");
+            }
+
+            this.mempool = mempool;
+        }
+
+        void flushPendingState(Block block, List<AionTxReceipt> receipts) {
+            mempool.flushPendingState(block, receipts);
+        }
+
     }
 }
