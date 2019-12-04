@@ -17,9 +17,12 @@ import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.aion.zero.impl.blockchain.AionImpl.PendingTxCallback;
+import org.aion.zero.impl.types.PendingTxDetails;
 import org.aion.zero.impl.vm.common.VmFatalException;
 import org.aion.base.AionTransaction;
 import org.aion.base.PooledTransaction;
@@ -148,6 +151,9 @@ public class AionPendingStateImpl implements IPendingState {
     private long fork040Block = -1;
     private boolean fork040Enable = false;
 
+    private AtomicBoolean pendingTxReceivedforMining;
+    private PendingTxCallback pendingTxCallback = null;
+
     class TxBuffTask implements Runnable {
 
         @Override
@@ -230,7 +236,6 @@ public class AionPendingStateImpl implements IPendingState {
         public void run() {
             while (go) {
                 IEvent e = ees.take();
-
                 if (e.getEventType() == IHandler.TYPE.POISONPILL.getValue()) {
                     go = false;
                 }
@@ -553,9 +558,13 @@ public class AionPendingStateImpl implements IPendingState {
         }
 
         if (!newPending.isEmpty()) {
-            IEvent evtRecv = new EventTx(EventTx.CALLBACK.PENDINGTXRECEIVED0);
-            evtRecv.setFuncArgs(Collections.singletonList(newPending));
-            this.evtMgr.newEvent(evtRecv);
+            if (pendingTxCallback != null) {
+                pendingTxCallback.pendingTxReceivedCallback(newPending);
+            }
+
+            if (pendingTxReceivedforMining != null) {
+                pendingTxReceivedforMining.set(true);
+            }
         }
 
         if (!loadPendingTx) {
@@ -599,31 +608,24 @@ public class AionPendingStateImpl implements IPendingState {
         return (this.txPool.bestPoolNonce(from).compareTo(txNonce) > -1);
     }
 
-    private void fireTxUpdate(
-            AionTxReceipt txReceipt, PendingTransactionState state, Block block) {
-        if (LOGGER_TX.isTraceEnabled()) {
-            LOGGER_TX.trace(
-                    String.format(
-                            "PendingTransactionUpdate: (Tot: %3s) %12s : %s %8s %s [%s]",
-                            getPendingTxSize(),
-                            state,
-                            txReceipt
-                                    .getTransaction()
-                                    .getSenderAddress()
-                                    .toString()
-                                    .substring(0, 8),
-                            ByteUtil.byteArrayToLong(txReceipt.getTransaction().getNonce()),
-                            block.getShortDescr(),
-                            txReceipt.getError()));
-        }
+    private void fireTxUpdate(AionTxReceipt txReceipt, PendingTransactionState state, Block block) {
+        LOGGER_TX.trace(
+                String.format(
+                        "PendingTransactionUpdate: (Tot: %3s) %12s : %s %8s %s [%s]",
+                        getPendingTxSize(),
+                        state,
+                        txReceipt
+                                .getTransaction()
+                                .getSenderAddress()
+                                .toString()
+                                .substring(0, 8),
+                        ByteUtil.byteArrayToLong(txReceipt.getTransaction().getNonce()),
+                        block.getShortDescr(),
+                        txReceipt.getError()));
 
-        IEvent evt = new EventTx(EventTx.CALLBACK.PENDINGTXUPDATE0);
-        List<Object> args = new ArrayList<>();
-        args.add(txReceipt);
-        args.add(state.getValue());
-        args.add(block);
-        evt.setFuncArgs(args);
-        this.evtMgr.newEvent(evt);
+        if (pendingTxCallback != null) {
+            pendingTxCallback.pendingTxStateUpdateCallback(new PendingTxDetails(state.getValue(), txReceipt, block.getNumber()));
+        }
     }
 
     /**
@@ -849,6 +851,11 @@ public class AionPendingStateImpl implements IPendingState {
         if (this.dumpPool) {
             DumpPool();
         }
+    }
+
+    @Override
+    public void setNewPendingReceiveForMining(AtomicBoolean newPendingTxReceived) {
+        pendingTxReceivedforMining = newPendingTxReceived;
     }
 
     private void flushCachePendingTx() {
@@ -1308,5 +1315,9 @@ public class AionPendingStateImpl implements IPendingState {
 
     public void updateBest() {
         getBestBlock();
+    }
+
+    public void setPendingTxCallback(PendingTxCallback callback) {
+        this.pendingTxCallback = callback;
     }
 }

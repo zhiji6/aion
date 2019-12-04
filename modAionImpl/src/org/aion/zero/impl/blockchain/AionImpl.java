@@ -1,7 +1,10 @@
 package org.aion.zero.impl.blockchain;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.aion.zero.impl.types.PendingTxDetails;
 import org.aion.zero.impl.vm.common.VmFatalException;
 import org.aion.base.AionTransaction;
 import org.aion.crypto.ECKey;
@@ -22,7 +25,6 @@ import org.aion.zero.impl.SystemExitCodes;
 import org.aion.zero.impl.config.CfgAion;
 import org.aion.zero.impl.db.AionRepositoryImpl;
 import org.aion.zero.impl.tx.TxCollector;
-import org.aion.zero.impl.types.AionBlock;
 import org.aion.base.AionTxReceipt;
 import org.slf4j.Logger;
 
@@ -40,6 +42,8 @@ public class AionImpl implements IAionChain {
     private TxCollector collector;
 
     private EquihashMiner equihashMiner;
+
+    private List<BlockchainCallbackInterface> blockchainCallbackInterfaces;
 
     private AionImpl(boolean forTest) {
         this.cfg = CfgAion.inst();
@@ -60,6 +64,9 @@ public class AionImpl implements IAionChain {
                         + ">");
 
         collector = new TxCollector(this.aionHub.getP2pMgr(), LOG_TX);
+
+        blockchainCallbackInterfaces = Collections.synchronizedList(new ArrayList<>());
+        aionHub.getPendingState().setPendingTxCallback(new PendingTxCallback(blockchainCallbackInterfaces));
     }
 
     public static AionImpl inst() {
@@ -256,6 +263,11 @@ public class AionImpl implements IAionChain {
     }
 
     @Override
+    public void setApiServiceCallback(BlockchainCallbackInterface blockchainCallbackForApiServer) {
+        blockchainCallbackInterfaces.add(blockchainCallbackForApiServer);
+    }
+
+    @Override
     public Optional<Long> getInitialStartingBlockNumber() {
         try {
             return Optional.of(this.aionHub.getStartingBlock().getNumber());
@@ -338,5 +350,31 @@ public class AionImpl implements IAionChain {
 
     private static class HolderForTest {
         static final AionImpl INSTANCE = new AionImpl(true);
+    }
+
+    public class PendingTxCallback {
+        List<BlockchainCallbackInterface> callbackInterfaces;
+
+        PendingTxCallback(List<BlockchainCallbackInterface> callbackInterfaces) {
+            this.callbackInterfaces = callbackInterfaces;
+        }
+
+        public void pendingTxReceivedCallback(List<AionTransaction> newPendingTx) {
+            for (BlockchainCallbackInterface callbackInterface : callbackInterfaces) {
+                if (callbackInterface.isForApiServer()) {
+                    for (AionTransaction tx : newPendingTx) {
+                        callbackInterface.pendingTxReceived(tx);
+                    }
+                }
+            }
+        }
+
+        public void pendingTxStateUpdateCallback(PendingTxDetails txDetails) {
+            for (BlockchainCallbackInterface callbackInterface : callbackInterfaces) {
+                if (callbackInterface.isForApiServer()) {
+                    callbackInterface.pendingTxUpdated(txDetails);
+                }
+            }
+        }
     }
 }

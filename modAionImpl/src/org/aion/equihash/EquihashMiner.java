@@ -70,8 +70,7 @@ public class EquihashMiner {
             while (go) {
                 IEvent e = ees.take();
                 if (e.getEventType() == IHandler.TYPE.CONSENSUS.getValue()
-                        && e.getCallbackType()
-                                == EventConsensus.CALLBACK.ON_BLOCK_TEMPLATE.getValue()) {
+                    && e.getCallbackType() == EventConsensus.CALLBACK.ON_BLOCK_TEMPLATE.getValue()) {
                     EquihashMiner.this.onBlockTemplate((AionBlock) e.getFuncArgs().get(0));
                 } else if (e.getEventType() == IHandler.TYPE.POISONPILL.getValue()) {
                     go = false;
