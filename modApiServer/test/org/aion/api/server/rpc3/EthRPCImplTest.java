@@ -12,16 +12,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.aion.api.server.external.ChainHolder;
 import org.aion.api.server.external.types.SyncInfo;
+import org.aion.base.AccountState;
 import org.aion.base.AionTransaction;
 import org.aion.base.AionTxReceipt;
 import org.aion.base.TxUtil;
 import org.aion.crypto.ECKey;
 import org.aion.crypto.ECKeyFac;
 import org.aion.crypto.HashUtil;
+import org.aion.mcf.blockchain.Block;
 import org.aion.rpc.client.IDGeneratorStrategy;
 import org.aion.rpc.client.SimpleIDGenerator;
+import org.aion.rpc.constants.Method;
 import org.aion.rpc.errors.RPCExceptions;
 import org.aion.rpc.errors.RPCExceptions.NullReturnRPCException;
 import org.aion.rpc.server.RPCServerMethods;
@@ -31,26 +37,42 @@ import org.aion.rpc.types.RPCTypes.BlockEnum;
 import org.aion.rpc.types.RPCTypes.BlockNumberEnumUnion;
 import org.aion.rpc.types.RPCTypes.ByteArray;
 import org.aion.rpc.types.RPCTypes.CallParams;
+import org.aion.rpc.types.RPCTypes.EthBlockHashParams;
+import org.aion.rpc.types.RPCTypes.EthBlockNumberParams;
 import org.aion.rpc.types.RPCTypes.Request;
 import org.aion.rpc.types.RPCTypes.SendTransactionParams;
 import org.aion.rpc.types.RPCTypes.SendTransactionRawParams;
+import org.aion.rpc.types.RPCTypes.TransactionHashParams;
 import org.aion.rpc.types.RPCTypes.TxCall;
 import org.aion.rpc.types.RPCTypes.VersionType;
 import org.aion.rpc.types.RPCTypesConverter.AddressBlockParamsConverter;
 import org.aion.rpc.types.RPCTypesConverter.Byte32StringConverter;
 import org.aion.rpc.types.RPCTypesConverter.CallParamsConverter;
 import org.aion.rpc.types.RPCTypesConverter.DataHexStringConverter;
+import org.aion.rpc.types.RPCTypesConverter.EthBlockConverter;
+import org.aion.rpc.types.RPCTypesConverter.EthBlockHashParamsConverter;
+import org.aion.rpc.types.RPCTypesConverter.EthBlockNumberParamsConverter;
+import org.aion.rpc.types.RPCTypesConverter.EthTransactionConverter;
+import org.aion.rpc.types.RPCTypesConverter.EthTransactionReceiptConverter;
 import org.aion.rpc.types.RPCTypesConverter.LongConverter;
 import org.aion.rpc.types.RPCTypesConverter.SendTransactionParamsConverter;
 import org.aion.rpc.types.RPCTypesConverter.SendTransactionRawParamsConverter;
 import org.aion.rpc.types.RPCTypesConverter.SyncInfoUnionConverter;
+import org.aion.rpc.types.RPCTypesConverter.TransactionHashParamsConverter;
 import org.aion.rpc.types.RPCTypesConverter.Uint128HexStringConverter;
 import org.aion.rpc.types.RPCTypesConverter.Uint256HexStringConverter;
 import org.aion.types.AionAddress;
+import org.aion.types.Log;
 import org.aion.util.HexUtil;
 import org.aion.util.conversions.Hex;
+import org.aion.util.types.ByteArrayWrapper;
+import org.aion.zero.impl.types.AionBlock;
+import org.aion.zero.impl.types.AionTxInfo;
+import org.aion.zero.impl.types.StakingBlock;
+import org.aion.zero.impl.types.StakingBlockHeader;
 import org.aion.zero.impl.types.TxResponse;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.json.JSONArray;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -69,6 +91,10 @@ public class EthRPCImplTest {
     private final String ethSendRawTransactionMethod = "eth_sendRawTransaction";
     private final String ethSendTransactionMethod = "eth_sendTransaction";
     private final String ethSyncingMethod = "eth_syncing";
+    private final String ethGetBlockByNumber = Method.Eth_getBlockByNumber.name;
+    private final String ethGetBlockByHash = Method.Eth_getBlockByHash.name;
+    private final String ethGetTransactionByHash = Method.Eth_getTransactionByHash.name;
+    private final String ethGetTransactionReceipt = Method.Eth_getTransactionReceipt.name;
     private ChainHolder chainHolder;
     private RPCServerMethods rpcMethods;
     private AionTxReceipt txReceipt;
@@ -78,6 +104,8 @@ public class EthRPCImplTest {
     private byte[] txEncoded1;
     private AionTransaction transaction1;
     private AionTransaction transaction0;
+    private ByteArray transactionHash;
+    private StakingBlock emptyPosBlock;
 
     @Before
     public void setup() {
@@ -305,7 +333,7 @@ public class EthRPCImplTest {
                 BigInteger.ONE,
                 null,
                 null,
-                null, (byte) 1);
+                null, (byte)1);
         transaction0 = ((RPCMethods)rpcMethods).transactionForTxCall(txCall0);
         transaction1 = ((RPCMethods)rpcMethods).transactionForTxCall(txCall1);
 
@@ -396,4 +424,98 @@ public class EthRPCImplTest {
             SyncInfoUnionConverter::decode), NullReturnRPCException.class);
     }
 
+    void setupEthGetBlockOrTransaction(){
+        AionTxReceipt receipt = new AionTxReceipt();
+        ECKey ecKey = ECKeyFac.inst().create();
+        receipt.setError("");
+        receipt.setExecutionResult(HashUtil.h256(BigInteger.ONE.toByteArray()));
+
+        List<Log> infos = new ArrayList<>();
+        receipt.setLogs(infos);
+        receipt.setPostTxState(HashUtil.h256(BigInteger.ONE.toByteArray()));
+
+        AionTxInfo txInfo =
+            AionTxInfo.newInstanceWithInternalTransactions(
+                receipt,
+                ByteArrayWrapper.wrap(HashUtil.h256(BigInteger.ZERO.toByteArray())),
+                0, Collections.emptyList());
+        txInfo.getReceipt()
+            .setTransaction(
+                AionTransaction.create(ecKey,
+                    BigInteger.ZERO.toByteArray(),
+                    new AionAddress(ecKey.getAddress()),
+                    BigInteger.ZERO.toByteArray(),
+                    BigInteger.ZERO.toByteArray(),
+                    10,
+                    10,
+                    (byte) 0b1,
+                    HashUtil.h256(BigInteger.ZERO.toByteArray())));
+        transactionHash = ByteArray.wrap(txInfo.getReceipt().getTransaction().getTransactionHash());
+        List<AionTransaction> txList = new ArrayList<>();
+        txList.add(txInfo.getReceipt().getTransaction());
+        StakingBlockHeader.Builder builder =
+            StakingBlockHeader.Builder.newInstance()
+                .withDefaultCoinbase()
+                .withDefaultDifficulty()
+                .withDefaultExtraData()
+                .withDefaultLogsBloom()
+                .withDefaultParentHash()
+                .withDefaultReceiptTrieRoot()
+                .withDefaultSeed()
+                .withDefaultSignature()
+                .withDefaultSigningPublicKey()
+                .withDefaultStateRoot()
+                .withDefaultTxTrieRoot();
+        emptyPosBlock = new StakingBlock(builder.build(), txList);
+        doReturn(BigInteger.ONE).when(chainHolder).calculateReward(any());
+        doReturn(emptyPosBlock).when(chainHolder).getBlockByNumber(anyLong());
+        doReturn(emptyPosBlock).when(chainHolder).getBlockByHash(any());
+        doReturn(txInfo).when(chainHolder).getTransactionInfo(any());
+        doReturn(BigInteger.ONE).when(chainHolder).getTotalDifficultyByHash(any());
+        doReturn(new AccountState(BigInteger.TEN, BigInteger.TEN)).when(chainHolder).getAccountState(any());
+    }
+
+    @Test
+    public void eth_getBlockByNumber(){
+        setupEthGetBlockOrTransaction();
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetBlockByNumber,
+            EthBlockNumberParamsConverter.encode(new EthBlockNumberParams(1L, false))),
+            rpcMethods,
+            EthBlockConverter::decode));
+
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetBlockByNumber,
+            EthBlockNumberParamsConverter.encode(new EthBlockNumberParams(1L, true))),
+            rpcMethods,
+            EthBlockConverter::decode));
+    }
+
+    @Test
+    public void eth_getBlockByHash(){
+        setupEthGetBlockOrTransaction();
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetBlockByHash, EthBlockHashParamsConverter.encode(new EthBlockHashParams(ByteArray.wrap(emptyPosBlock.getHash()), false))), rpcMethods, EthBlockConverter::decode));
+
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetBlockByHash,
+            EthBlockHashParamsConverter
+                .encode(new EthBlockHashParams(ByteArray.wrap(emptyPosBlock.getHash()), true))),
+            rpcMethods,
+            EthBlockConverter::decode));
+    }
+
+    @Test
+    public void eth_getTransaction(){
+        setupEthGetBlockOrTransaction();
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetTransactionByHash,
+            TransactionHashParamsConverter.encode(new TransactionHashParams((transactionHash)))),
+            rpcMethods,
+            EthTransactionConverter::decode));
+    }
+
+    @Test
+    public void eth_getTransactionReceipt(){
+        setupEthGetBlockOrTransaction();
+        assertNotNull(RPCTestUtils.executeRequest(RPCTestUtils.buildRequest(ethGetTransactionReceipt,
+            TransactionHashParamsConverter.encode(new TransactionHashParams((transactionHash)))),
+            rpcMethods,
+            EthTransactionReceiptConverter::decode));
+    }
 }
