@@ -34,12 +34,10 @@ import org.aion.txpool.TxPoolA0;
 import org.aion.zero.impl.blockchain.AionBlockchainImpl;
 import org.aion.zero.impl.blockchain.AionImpl;
 import org.aion.zero.impl.types.TxResponse;
-import org.aion.zero.impl.config.CfgFork;
 import org.aion.base.AccountState;
 import org.aion.mcf.db.Repository;
 import org.aion.mcf.db.RepositoryCache;
 import org.aion.zero.impl.db.TransactionStore;
-import org.aion.base.TransactionTypeRule;
 import org.aion.zero.impl.vm.common.TxNrgRule;
 import org.aion.txpool.Constant;
 import org.aion.txpool.ITxPool;
@@ -132,9 +130,6 @@ public class AionPendingStateImpl implements IPendingState {
     private boolean closeToNetworkBest = true;
 
     private BeaconHashValidator beaconHashValidator;
-
-    private long fork040Block = -1;
-    private boolean fork040Enable = false;
 
     private AtomicBoolean pendingTxReceivedforMining;
     private PendingTxCallback pendingTxCallback = null;
@@ -259,12 +254,6 @@ public class AionPendingStateImpl implements IPendingState {
             txPool = null;
             LOGGER_TX.info("Seed mode is enable");
         }
-
-        CfgFork cfg = _cfgAion.getFork();
-        String fork040 = cfg.getProperties().getProperty("fork0.4.0");
-        if (fork040 != null) {
-            fork040Block = Long.valueOf(fork040);
-        }
     }
 
     public void init(final AionBlockchainImpl blockchain, boolean test) {
@@ -272,7 +261,7 @@ public class AionPendingStateImpl implements IPendingState {
         this.blockchain = blockchain;
         this.beaconHashValidator = blockchain.beaconHashValidator;
 
-        this.currentBestBlock = new AtomicReference<>();
+        this.currentBestBlock = new AtomicReference<>(blockchain.getBestBlock());
         this.test = test;
 
         if (!this.isSeed) {
@@ -315,11 +304,6 @@ public class AionPendingStateImpl implements IPendingState {
     @Override
     public synchronized List<AionTransaction> getPendingTransactions() {
         return isSeed ? new ArrayList<>() : this.txPool.snapshot();
-    }
-
-    public synchronized Block getBestBlock() {
-        currentBestBlock.set(blockchain.getBestBlock());
-        return currentBestBlock.get();
     }
 
     /**
@@ -975,10 +959,6 @@ public class AionPendingStateImpl implements IPendingState {
             LOGGER_TX.trace("executeTx: {}", Hex.toHexString(tx.getTransactionHash()));
         }
 
-        if (fork040Block > -1 && !fork040Enable) {
-            fork040Enable = bestBlk.getNumber() >= fork040Block;
-        }
-
         try {
             // Booleans moved out here so their meaning is explicit.
             boolean isLocalCall = false;
@@ -1006,7 +986,7 @@ public class AionPendingStateImpl implements IPendingState {
                     pendingState,
                     isLocalCall,
                     incrementSenderNonce,
-                    fork040Enable,
+                    blockchain.forkUtility.is040ForkActive(currentBlockNumber),
                     checkBlockEnergyLimit,
                     LOGGER_VM,
                     BlockCachingContext.PENDING,
@@ -1099,15 +1079,6 @@ public class AionPendingStateImpl implements IPendingState {
         loadPendingTx = false;
     }
 
-    public void checkAvmFlag() {
-
-        long bestBlockNumber = getBestBlock().getNumber();
-
-        if (fork040Block != -1 && bestBlockNumber >= fork040Block) {
-            TransactionTypeRule.allowAVMContractTransaction();
-        }
-    }
-
     private void recoverCache() {
 
         LOGGER_TX.info("pendingCacheTx loading from DB");
@@ -1194,10 +1165,6 @@ public class AionPendingStateImpl implements IPendingState {
 
     public String getVersion() {
         return isSeed ? "0" : this.txPool.getVersion();
-    }
-
-    public void updateBest() {
-        getBestBlock();
     }
 
     public void setPendingTxCallback(PendingTxCallback callback) {
