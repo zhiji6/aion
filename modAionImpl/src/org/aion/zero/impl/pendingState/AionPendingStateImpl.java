@@ -99,7 +99,7 @@ public class AionPendingStateImpl implements IPendingState {
 
     private RepositoryCache<AccountState> pendingState;
 
-    private AtomicReference<Block> best;
+    private AtomicReference<Block> currentBestBlock;
 
     private PendingTxCache pendingTxCache;
 
@@ -178,12 +178,12 @@ public class AionPendingStateImpl implements IPendingState {
                                     .equals(summary.getTransaction())) {
                         AionTxReceipt rp = new AionTxReceipt();
                         rp.setTransaction(newPending.get(cnt).tx);
-                        fireTxUpdate(rp, PendingTransactionState.DROPPED, best.get());
+                        fireTxUpdate(rp, PendingTransactionState.DROPPED, currentBestBlock.get());
                     }
                     cnt++;
 
                     fireTxUpdate(
-                            summary.getReceipt(), PendingTransactionState.NEW_PENDING, best.get());
+                            summary.getReceipt(), PendingTransactionState.NEW_PENDING, currentBestBlock.get());
                 }
 
                 if (!txs.isEmpty() && !loadPendingTx) {
@@ -272,7 +272,7 @@ public class AionPendingStateImpl implements IPendingState {
         this.blockchain = blockchain;
         this.beaconHashValidator = blockchain.beaconHashValidator;
 
-        this.best = new AtomicReference<>();
+        this.currentBestBlock = new AtomicReference<>();
         this.test = test;
 
         if (!this.isSeed) {
@@ -318,8 +318,8 @@ public class AionPendingStateImpl implements IPendingState {
     }
 
     public synchronized Block getBestBlock() {
-        best.set(blockchain.getBestBlock());
-        return best.get();
+        currentBestBlock.set(blockchain.getBestBlock());
+        return currentBestBlock.get();
     }
 
     /**
@@ -619,7 +619,7 @@ public class AionPendingStateImpl implements IPendingState {
                                 + " is rejected due to: {}",
                         txSum.getReceipt().getError());
             }
-            fireTxUpdate(txSum.getReceipt(), PendingTransactionState.DROPPED, best.get());
+            fireTxUpdate(txSum.getReceipt(), PendingTransactionState.DROPPED, currentBestBlock.get());
             return TxResponse.DROPPED;
         } else {
             PooledTransaction pendingTx = new PooledTransaction(tx, txSum.getReceipt().getEnergyUsed());
@@ -639,10 +639,10 @@ public class AionPendingStateImpl implements IPendingState {
                     if (poolBackUpEnable) {
                         backupPendingPoolRemove.add(tx.getTransactionHash().clone());
                     }
-                    fireTxUpdate(rp, PendingTransactionState.DROPPED, best.get());
+                    fireTxUpdate(rp, PendingTransactionState.DROPPED, currentBestBlock.get());
                 }
 
-                fireTxUpdate(txSum.getReceipt(), PendingTransactionState.NEW_PENDING, best.get());
+                fireTxUpdate(txSum.getReceipt(), PendingTransactionState.NEW_PENDING, currentBestBlock.get());
             }
 
             return TxResponse.SUCCESS;
@@ -658,7 +658,7 @@ public class AionPendingStateImpl implements IPendingState {
         AionTxReceipt rp = new AionTxReceipt();
         rp.setTransaction(tx);
         rp.setError(error);
-        fireTxUpdate(rp, PendingTransactionState.DROPPED, best.get());
+        fireTxUpdate(rp, PendingTransactionState.DROPPED, currentBestBlock.get());
     }
 
     private AionTxReceipt createDroppedReceipt(PooledTransaction pooledTx, String error) {
@@ -701,24 +701,24 @@ public class AionPendingStateImpl implements IPendingState {
             return;
         }
 
-        if (best.get() != null && !best.get().isParentOf(newBlock)) {
+        if (currentBestBlock.get() != null && !currentBestBlock.get().isParentOf(newBlock)) {
 
             // need to switch the state to another fork
 
-            Block commonAncestor = findCommonAncestor(best.get(), newBlock);
+            Block commonAncestor = findCommonAncestor(currentBestBlock.get(), newBlock);
 
             if (LOGGER_TX.isDebugEnabled()) {
                 LOGGER_TX.debug(
                         "New best block from another fork: "
                                 + newBlock.getShortDescr()
                                 + ", old best: "
-                                + best.get().getShortDescr()
+                                + currentBestBlock.get().getShortDescr()
                                 + ", ancestor: "
                                 + commonAncestor.getShortDescr());
             }
 
             // first return back the transactions from forked blocks
-            Block rollback = best.get();
+            Block rollback = currentBestBlock.get();
             while (!rollback.isEqual(commonAncestor)) {
                 if (LOGGER_TX.isDebugEnabled()) {
                     LOGGER_TX.debug("Rollback: {}", rollback.getShortDescr());
@@ -759,14 +759,14 @@ public class AionPendingStateImpl implements IPendingState {
             processBestInternal(newBlock, receipts);
         }
 
-        best.set(newBlock);
+        currentBestBlock.set(newBlock);
 
         closeToNetworkBest = isCloseToNetworkBest();
         LOGGER_TX.debug("PendingStateImpl.processBest: close to the network best: {}", closeToNetworkBest ? "true" : "false");
 
-        rerunTxsInPool(best.get());
+        rerunTxsInPool(currentBestBlock.get());
 
-        txPool.updateBlkNrgLimit(best.get().getNrgLimit());
+        txPool.updateBlkNrgLimit(currentBestBlock.get().getNrgLimit());
 
         flushCachePendingTx();
 
@@ -842,7 +842,7 @@ public class AionPendingStateImpl implements IPendingState {
                     createDroppedReceipt(
                             pooledTx, "Tx was not included into last " + timeout + " seconds"),
                     PendingTransactionState.DROPPED,
-                    best.get());
+                currentBestBlock.get());
         }
 
         if (LOGGER_TX.isDebugEnabled()) {
@@ -970,7 +970,7 @@ public class AionPendingStateImpl implements IPendingState {
 
     private AionTxExecSummary executeTx(AionTransaction tx, boolean inPool) {
 
-        Block bestBlk = best.get();
+        Block bestBlk = currentBestBlock.get();
         if (LOGGER_TX.isTraceEnabled()) {
             LOGGER_TX.trace("executeTx: {}", Hex.toHexString(tx.getTransactionHash()));
         }
@@ -1218,6 +1218,6 @@ public class AionPendingStateImpl implements IPendingState {
             return true;
         }
 
-        return best.get().getNumber() >= (networkBestBlockCallback.getNetworkBestBlockNumber() - 128);
+        return currentBestBlock.get().getNumber() >= (networkBestBlockCallback.getNetworkBestBlockNumber() - 128);
     }
 }
