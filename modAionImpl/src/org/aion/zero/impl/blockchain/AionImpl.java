@@ -67,6 +67,7 @@ public class AionImpl implements IAionChain {
 
         blockchainCallbackInterfaces = Collections.synchronizedList(new ArrayList<>());
         aionHub.getPendingState().setPendingTxCallback(new PendingTxCallback(blockchainCallbackInterfaces));
+        aionHub.getPendingState().setNetworkBestBlockNumberCallback(new NetworkBestBlockCallback(this));
     }
 
     public static AionImpl inst() {
@@ -375,6 +376,22 @@ public class AionImpl implements IAionChain {
                     callbackInterface.pendingTxUpdated(txDetails);
                 }
             }
+        }
+    }
+
+    public class NetworkBestBlockCallback {
+        IAionChain chainInterface;
+
+        NetworkBestBlockCallback(IAionChain chainInterface) {
+            if (chainInterface == null) {
+                throw new NullPointerException();
+            }
+            this.chainInterface = chainInterface;
+        }
+
+        public long getNetworkBestBlockNumber() {
+            Optional<Long> networkBest = chainInterface.getNetworkBestBlockNumber();
+            return networkBest.isPresent() ? networkBest.get() : 0;
         }
     }
 }
