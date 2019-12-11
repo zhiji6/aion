@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.aion.zero.impl.blockchain.AionImpl.NetworkBestBlockCallback;
 import org.aion.zero.impl.blockchain.AionImpl.PendingTxCallback;
+import org.aion.zero.impl.blockchain.AionImpl.TxBroadcastCallback;
 import org.aion.zero.impl.types.PendingTxDetails;
 import org.aion.zero.impl.vm.common.VmFatalException;
 import org.aion.base.AionTransaction;
@@ -30,7 +31,6 @@ import org.aion.log.LogEnum;
 import org.aion.mcf.blockchain.Block;
 import org.aion.txpool.TxPoolA0;
 import org.aion.zero.impl.blockchain.AionBlockchainImpl;
-import org.aion.zero.impl.blockchain.AionImpl;
 import org.aion.zero.impl.types.TxResponse;
 import org.aion.base.AccountState;
 import org.aion.mcf.db.RepositoryCache;
@@ -103,6 +103,7 @@ public class AionPendingStateImpl implements IPendingState {
     private AtomicBoolean pendingTxReceivedforMining;
     private PendingTxCallback pendingTxCallback = null;
     private NetworkBestBlockCallback networkBestBlockCallback = null;
+    private TxBroadcastCallback txBroadcastCallback = null;
 
     class TxBuffTask implements Runnable {
 
@@ -158,7 +159,8 @@ public class AionPendingStateImpl implements IPendingState {
                     for (PooledTransaction pooledTransaction : txs) {
                         aionTransactions.add(pooledTransaction.tx);
                     }
-                    AionImpl.inst().broadcastTransactions(aionTransactions);
+
+                    txBroadcastCallback.broadcastTx(aionTransactions);
                 }
             } catch (Exception e) {
                 LOGGER_TX.error("processTxBuffer throw ", e);
@@ -461,11 +463,10 @@ public class AionPendingStateImpl implements IPendingState {
         if (!loadPendingTx) {
             if (bufferEnable) {
                 if (!newLargeNonceTx.isEmpty()) {
-                    AionImpl.inst().broadcastTransactions(newLargeNonceTx);
+                    txBroadcastCallback.broadcastTx(newLargeNonceTx);
                 }
             } else if (!test && (!newPending.isEmpty() || !newLargeNonceTx.isEmpty())) {
-                AionImpl.inst()
-                        .broadcastTransactions(
+                txBroadcastCallback.broadcastTx(
                                 Stream.concat(newPending.stream(), newLargeNonceTx.stream())
                                         .collect(Collectors.toList()));
             }
@@ -489,7 +490,7 @@ public class AionPendingStateImpl implements IPendingState {
         }
 
         if (!newTx.isEmpty()) {
-            AionImpl.inst().broadcastTransactions(newTx);
+            txBroadcastCallback.broadcastTx(newTx);
         }
 
         return txResponses;
@@ -743,6 +744,11 @@ public class AionPendingStateImpl implements IPendingState {
     @Override
     public void setNewPendingReceiveForMining(AtomicBoolean newPendingTxReceived) {
         pendingTxReceivedforMining = newPendingTxReceived;
+    }
+
+    @Override
+    public void setTxBroadcastCallback(TxBroadcastCallback txBroadcastCallback) {
+        this.txBroadcastCallback = txBroadcastCallback;
     }
 
     private void flushCachePendingTx() {

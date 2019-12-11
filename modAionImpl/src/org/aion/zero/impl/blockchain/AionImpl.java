@@ -23,7 +23,6 @@ import org.aion.zero.impl.vm.common.BlockCachingContext;
 import org.aion.zero.impl.vm.common.BulkExecutor;
 import org.aion.zero.impl.SystemExitCodes;
 import org.aion.zero.impl.config.CfgAion;
-import org.aion.zero.impl.db.AionRepositoryImpl;
 import org.aion.zero.impl.tx.TxCollector;
 import org.aion.base.AionTxReceipt;
 import org.slf4j.Logger;
@@ -68,6 +67,7 @@ public class AionImpl implements IAionChain {
         blockchainCallbackInterfaces = Collections.synchronizedList(new ArrayList<>());
         aionHub.getPendingState().setPendingTxCallback(new PendingTxCallback(blockchainCallbackInterfaces));
         aionHub.getPendingState().setNetworkBestBlockNumberCallback(new NetworkBestBlockCallback(this));
+        aionHub.getPendingState().setTxBroadcastCallback(new TxBroadcastCallback(this));
     }
 
     public static AionImpl inst() {
@@ -111,18 +111,9 @@ public class AionImpl implements IAionChain {
         aionHub.close();
     }
 
-    /**
-     * Lock removed, both functions submit to executors, which will enforce their own parallelism,
-     * therefore function is thread safe
-     */
-    @SuppressWarnings("unchecked")
     @Override
-    public void broadcastTransaction(AionTransaction transaction) {
-        collector.submitTx(transaction);
-    }
-
-    public void broadcastTransactions(List<AionTransaction> transaction) {
-        collector.submitTx(transaction);
+    public void broadcastTransactions(List<AionTransaction> transactions) {
+        collector.submitTx(transactions);
     }
 
     public long estimateTxNrg(AionTransaction tx, Block block) {
@@ -376,6 +367,21 @@ public class AionImpl implements IAionChain {
                     callbackInterface.pendingTxUpdated(txDetails);
                 }
             }
+        }
+    }
+
+    public class TxBroadcastCallback {
+        IAionChain chainInterface;
+
+        TxBroadcastCallback(IAionChain chainInterface) {
+            if (chainInterface == null) {
+                throw new NullPointerException();
+            }
+            this.chainInterface = chainInterface;
+        }
+
+        public void broadcastTx(List<AionTransaction> transactions) {
+            chainInterface.broadcastTransactions(transactions);
         }
     }
 
