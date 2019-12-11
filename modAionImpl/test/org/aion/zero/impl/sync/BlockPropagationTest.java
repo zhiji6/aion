@@ -27,7 +27,6 @@ import org.aion.p2p.Msg;
 import org.aion.zero.impl.blockchain.StandaloneBlockchain;
 import org.aion.zero.impl.pendingState.AionPendingStateImpl;
 import org.aion.zero.impl.config.CfgAion;
-import org.aion.zero.impl.db.AionRepositoryImpl;
 import org.aion.zero.impl.sync.handler.BlockPropagationHandler;
 import org.aion.zero.impl.types.AionBlock;
 import org.junit.Test;
@@ -342,7 +341,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
+                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
 
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
                 .isEqualTo(BlockPropagationHandler.PropStatus.CONNECTED);
@@ -409,7 +408,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
+                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
 
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
@@ -472,7 +471,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
+                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
 
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
@@ -530,7 +529,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
+                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
 
         // pretend that we propagate the new block
         handler.propagateNewBlock(block); // send counter incremented

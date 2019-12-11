@@ -117,7 +117,7 @@ public class AionHub {
         this.blockchain = _blockchain == null ? new AionBlockchainImpl(cfg, forTest) : _blockchain;
         blockchain.setEventManager(this.eventMgr);
 
-        this.mempool = AionPendingStateImpl.create(cfg, blockchain, forTest);
+        this.mempool = forTest ? AionPendingStateImpl.createForTest(cfg, blockchain) : AionPendingStateImpl.create(cfg, blockchain);
 
         try {
             loadBlockchain();

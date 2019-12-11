@@ -191,9 +191,15 @@ public class AionPendingStateImpl implements IPendingState {
         pendingTxCache.clearCacheTxHash();
     }
 
-    public static AionPendingStateImpl create(CfgAion cfgAion, AionBlockchainImpl blockchain, boolean forTest) {
+    public static AionPendingStateImpl create(CfgAion cfgAion, AionBlockchainImpl blockchain) {
         AionPendingStateImpl ps = new AionPendingStateImpl(cfgAion);
-        ps.init(blockchain, forTest);
+        ps.init(blockchain);
+        return ps;
+    }
+
+    public static AionPendingStateImpl createForTest(CfgAion cfgAion, AionBlockchainImpl blockchain) {
+        AionPendingStateImpl ps = new AionPendingStateImpl(cfgAion);
+        ps.initForTest(blockchain);
         return ps;
     }
 
@@ -223,18 +229,16 @@ public class AionPendingStateImpl implements IPendingState {
         }
     }
 
-    public void init(final AionBlockchainImpl blockchain, boolean test) {
+    private void init(final AionBlockchainImpl blockchain) {
 
         this.blockchain = blockchain;
         this.currentBestBlock = new AtomicReference<>(blockchain.getBestBlock());
-        this.test = test;
-
         if (!this.isSeed) {
 
             this.poolBackUpEnable = CfgAion.inst().getTx().getPoolBackup();
             this.replayTxBuffer = new ArrayList<>();
             this.pendingTxCache =
-                    new PendingTxCache(CfgAion.inst().getTx().getCacheMax(), poolBackUpEnable);
+                new PendingTxCache(CfgAion.inst().getTx().getCacheMax(), poolBackUpEnable);
             this.pendingState = blockchain.getRepository().startTracking();
 
             this.dumpPool = test || CfgAion.inst().getTx().getPoolDump();
@@ -254,6 +258,11 @@ public class AionPendingStateImpl implements IPendingState {
                 this.txBuffer = Collections.synchronizedList(new ArrayList<>());
             }
         }
+    }
+
+    private void initForTest(final AionBlockchainImpl blockchain) {
+        this.test = true;
+        init(blockchain);
     }
 
     public synchronized RepositoryCache<?> getRepository() {
