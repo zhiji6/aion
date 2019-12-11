@@ -1218,4 +1218,16 @@ public class AionRepositoryImpl extends AbstractRepository {
                                 config.getDb()),
                         10);
     }
+
+    /**
+     * Determines if the given block (referenced by hash and number) is already stored in the
+     * repository.
+     *
+     * @implNote The number is used to optimize the search by comparing it to the largest known
+     *     block height.
+     * @return {@code true} if the given block exists in the block store, {@code false} otherwise.
+     */
+    public boolean isBlockStored(byte[] hash, long number) {
+        return blockStore.isBlockStored(hash, number);
+    }
 }
