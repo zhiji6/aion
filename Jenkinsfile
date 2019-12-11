@@ -67,7 +67,7 @@ pipeline {
             }
             steps { 
                     dir('FunctionalTests') {
-                        checkout scm: [$class: 'GitSCM', userRemoteConfigs: [[url: 'https://github.com/aionnetwork/node_test_harness.git']], branches: [[name: 'refs/tags/final_jdk10']]], poll: false
+                        checkout scm: [$class: 'GitSCM', userRemoteConfigs: [[url: 'https://github.com/aionnetwork/node_test_harness.git']], branches: [[name: '23a6473314ca974b909b934aaaf29b97edcd07c5']]], poll: false
                     }
 
                     sh('cp pack/oan.tar.bz2 FunctionalTests/Tests')
@@ -93,11 +93,11 @@ pipeline {
         slackSend channel: '#ci',
             color: 'good',
             message: "The pipeline ${currentBuild.fullDisplayName} completed successfully. Grab the generated builds at ${env.BUILD_URL}"
-    } 
+    }
 
         failure {
             slackSend channel: '#ci',
-                    color: 'danger', 
+                    color: 'danger',
                     message: "The pipeline ${currentBuild.fullDisplayName} failed at ${env.BUILD_URL}"
         }
 
