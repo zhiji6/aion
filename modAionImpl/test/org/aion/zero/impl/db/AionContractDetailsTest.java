@@ -92,7 +92,7 @@ public class AionContractDetailsTest {
 
         byte[] data = contractDetails.getEncoded();
 
-        AionContractDetailsImpl contractDetails_ = new AionContractDetailsImpl(data);
+        AionContractDetailsImpl contractDetails_ = ContractDetailsFactory.fromEncoding(data);
 
         byte[] codeHash = h256(code);
         assertEquals(ByteUtil.toHexString(code), ByteUtil.toHexString(contractDetails_.getCode(codeHash)));
@@ -193,7 +193,7 @@ public class AionContractDetailsTest {
 
         byte[] data = contractDetails.getEncoded();
 
-        AionContractDetailsImpl contractDetails_ = new AionContractDetailsImpl(data);
+        AionContractDetailsImpl contractDetails_ = ContractDetailsFactory.fromEncoding(data);
 
         byte[] codeHash = h256(code);
         assertEquals(ByteUtil.toHexString(code), ByteUtil.toHexString(contractDetails_.getCode(codeHash)));
@@ -461,7 +461,7 @@ public class AionContractDetailsTest {
 
         // create object using encoding
         // throws exception due to the illegal size of the encoding above
-        new AionContractDetailsImpl(oldEncoding);
+        ContractDetailsFactory.fromEncoding(oldEncoding);
     }
 
     @Test
@@ -486,7 +486,7 @@ public class AionContractDetailsTest {
         assertThat(details.getVmType()).isEqualTo(InternalVmType.FVM);
 
         // check that the decoding has the default VM type
-        AionContractDetailsImpl decoded = new AionContractDetailsImpl(details.getEncoded());
+        AionContractDetailsImpl decoded = ContractDetailsFactory.fromEncoding(details.getEncoded());
         assertThat(decoded.getVmType()).isEqualTo(InternalVmType.EITHER);
     }
 }
