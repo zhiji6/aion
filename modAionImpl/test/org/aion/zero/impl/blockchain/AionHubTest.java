@@ -92,7 +92,7 @@ public class AionHubTest {
         StandaloneBlockchain chain = bundle.bc;
         chain.setBestBlock(chain.getGenesis());
 
-        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain, chain.getRepository());
+        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain);
         checkHubNullity(hub);
 
         Block blk = hub.getStartingBlock();
@@ -112,7 +112,7 @@ public class AionHubTest {
         int expectedStartBlock = 6;
         generateRandomChainWithoutTransactions(chain, expectedStartBlock, 1);
 
-        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain, chain.getRepository());
+        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain);
         checkHubNullity(hub);
 
         Block blk = hub.getStartingBlock();
@@ -179,7 +179,7 @@ public class AionHubTest {
         assertThat(trie.isValidRoot(chain.getBestBlock().getStateRoot())).isFalse();
 
         // recovery should be called by loadBlockchain()
-        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain, chain.getRepository());
+        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain);
         checkHubNullity(hub);
 
         Block blk = hub.getStartingBlock();
@@ -267,7 +267,7 @@ public class AionHubTest {
         repo.flush();
 
         // recovery should be called by loadBlockchain()
-        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain, chain.getRepository());
+        AionHub hub = AionHub.createForTesting(CfgAion.inst(), chain);
         checkHubNullity(hub);
 
         assertEquals(td6, chain.getTotalDifficulty());

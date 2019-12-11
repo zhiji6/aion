@@ -342,7 +342,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, AionRepositoryImpl.inst(), true));
+                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
 
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
                 .isEqualTo(BlockPropagationHandler.PropStatus.CONNECTED);
@@ -409,7 +409,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, AionRepositoryImpl.inst(), true));
+                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
 
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
@@ -472,7 +472,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, AionRepositoryImpl.inst(), true));
+                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
 
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
@@ -530,7 +530,7 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, AionRepositoryImpl.inst(), true));
+                        AionPendingStateImpl.create(CfgAion.inst(), anotherBundle.bc, true));
 
         // pretend that we propagate the new block
         handler.propagateNewBlock(block); // send counter incremented
