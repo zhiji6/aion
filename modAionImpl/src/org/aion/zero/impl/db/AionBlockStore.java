@@ -915,7 +915,7 @@ public class AionBlockStore {
                             + "Please reboot your node to trigger automatic database recovery by the kernel.");
                 } else {
                     for (BlockInfo bk_info : currentLevelBlocks) {
-                        blocks.deleteInBatch(bk_info.getHash());
+                        blocks.delete(bk_info.getHash());
                         currentBatchSize++;
                     }
                 }
@@ -923,7 +923,7 @@ public class AionBlockStore {
                 // remove the level
                 index.remove(currentLevel);
                 if (currentBatchSize >= TARGET_BATCH_SIZE) {
-                    blocks.flushBatch();
+                    blocks.commit();
                     if (System.nanoTime() - time > TEN_SEC) {
                         LOG.info("Progress report: current height=" + currentLevel);
                         time = System.nanoTime();
@@ -932,13 +932,13 @@ public class AionBlockStore {
                 }
                 --currentLevel;
             }
-            blocks.flushBatch();
+            blocks.commit();
 
             LOG.warn("Revert complete. Please be aware that the current main chain is the same as at the start of the operation."
                     + "To keep this revert operation fast the main chain has not been updated based on existing side chains.");
         } catch (Exception e) {
             // making sure the blocks get deleted if interrupted
-            blocks.flushBatch();
+            blocks.commit();
         } finally {
             LOG.info("Block store revert COMPLETE.");
             lock.unlock();
