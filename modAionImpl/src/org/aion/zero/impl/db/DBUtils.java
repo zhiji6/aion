@@ -85,20 +85,7 @@ public class DBUtils {
 
         // get the current blockchain
         AionBlockchainImpl blockchain = new AionBlockchainImpl(cfg, false);
-
-        AionBlockStore store = blockchain.getBlockStore();
-
-        Block bestBlock = store.getBestBlock();
-        if (bestBlock == null) {
-            System.out.println("Empty database. Nothing to do.");
-            return;
-        }
-
-        // revert to block number and flush changes
-        store.pruneAndCorrect();
-        store.flush();
-
-        blockchain.getRepository().close();
+        blockchain.getRepository().pruneAndCorrectBlockStore();
     }
 
     /** Used by the CLI call. */
