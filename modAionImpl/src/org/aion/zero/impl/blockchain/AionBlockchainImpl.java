@@ -540,6 +540,11 @@ public class AionBlockchainImpl implements IAionBlockchain {
     }
 
     @Override
+    public List<Block> getBlocksByNumber(long blockNr) {
+        return getBlockStore().getBlocksByNumber(blockNr);
+    }
+
+    @Override
     public List<Block> getBlocksByRange(long first, long last) {
         return getBlockStore().getBlocksByRange(first, last);
     }
@@ -765,22 +770,6 @@ public class AionBlockchainImpl implements IAionBlockchain {
     @Override
     public AionBlock getBestMiningBlock() {
         return bestMiningBlock;
-    }
-
-    @Override
-    public void setBestStakingBlock(StakingBlock block) {
-        if (block == null) {
-            throw new NullPointerException("The best staking block is null");
-        }
-        bestStakingBlock = block;
-    }
-
-    @Override
-    public void setBestMiningBlock(AionBlock block) {
-        if (block == null) {
-            throw new NullPointerException("The best mining block us null");
-        }
-        bestMiningBlock = block;
     }
 
     //TODO : [unity] redesign the blockstore datastucture can read the staking/mining block directly.
@@ -2291,21 +2280,6 @@ public class AionBlockchainImpl implements IAionBlockchain {
     //
     //        return block.getHash();
     //    }
-
-    @Override
-    public List<byte[]> getListOfBodiesByHashes(List<byte[]> hashes) {
-        List<byte[]> bodies = new ArrayList<>(hashes.size());
-
-        for (byte[] hash : hashes) {
-            Block block = getBlockStore().getBlockByHash(hash);
-            if (block == null) {
-                break;
-            }
-            bodies.add(block.getEncodedBody());
-        }
-
-        return bodies;
-    }
 
     private void updateBestKnownBlock(Block block) {
         updateBestKnownBlock(block.getHeader());
