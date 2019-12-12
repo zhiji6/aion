@@ -80,8 +80,6 @@ public class AionPendingStateImpl implements IPendingState {
 
     private boolean isSeedMode;
 
-    private boolean loadPendingTx;
-
     private boolean poolBackUpEnable;
 
     private Map<byte[], byte[]> backupPendingPoolAdd;
@@ -174,6 +172,7 @@ public class AionPendingStateImpl implements IPendingState {
         this.currentBestBlock = new AtomicReference<>(blockchain.getBestBlock());
 
         if (isSeedMode) {
+            // seedMode has no txpool setup.
             txPool = null;
             LOGGER_TX.info("Seed mode is enabled");
         } else {
@@ -184,19 +183,20 @@ public class AionPendingStateImpl implements IPendingState {
             prop.put(ITxPool.PROP_TX_TIMEOUT, String.valueOf(txPendingTimeout));
             this.txPool = new TxPoolA0(prop);
 
-            this.poolBackUpEnable = poolBackup;
             this.replayTxBuffer = new ArrayList<>();
-            this.pendingTxCache = new PendingTxCache(maxTxCacheSize, poolBackUpEnable);
             this.pendingState = blockchain.getRepository().startTracking();
 
-            // seedMode has no pool.
-            this.poolDumpEnable = poolDump;
-
+            this.poolBackUpEnable = poolBackup;
+            this.pendingTxCache = new PendingTxCache(maxTxCacheSize, poolBackUpEnable);
             if (poolBackUpEnable) {
                 this.backupPendingPoolAdd = new HashMap<>();
                 this.backupPendingCacheAdd = new HashMap<>();
                 this.backupPendingPoolRemove = new HashSet<>();
+
+                // Trying to recover the pool backup first.
+                recoverPoolnCache();
             }
+            this.poolDumpEnable = poolDump;
         }
     }
 
@@ -238,7 +238,7 @@ public class AionPendingStateImpl implements IPendingState {
     public synchronized List<TxResponse> addPendingTransactions(
             List<AionTransaction> transactions) {
 
-        if ((isSeedMode || !closeToNetworkBest) && !loadPendingTx) {
+        if (isSeedMode || !closeToNetworkBest) {
             return seedProcess(transactions);
         }
 
@@ -392,12 +392,10 @@ public class AionPendingStateImpl implements IPendingState {
             }
         }
 
-        if (!loadPendingTx) {
-            if (!testingMode && (!newPending.isEmpty() || !newLargeNonceTx.isEmpty())) {
-                txBroadcastCallback.broadcastTx(
-                                Stream.concat(newPending.stream(), newLargeNonceTx.stream())
-                                        .collect(Collectors.toList()));
-            }
+        if (!testingMode && (!newPending.isEmpty() || !newLargeNonceTx.isEmpty())) {
+            txBroadcastCallback.broadcastTx(
+                    Stream.concat(newPending.stream(), newLargeNonceTx.stream())
+                            .collect(Collectors.toList()));
         }
 
         return txResponses;
@@ -969,12 +967,9 @@ public class AionPendingStateImpl implements IPendingState {
         }
     }
 
-    public void loadPendingTx() {
-
-        loadPendingTx = true;
+    private void recoverPoolnCache() {
         recoverPool();
         recoverCache();
-        loadPendingTx = false;
     }
 
     private void recoverCache() {

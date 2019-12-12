@@ -117,6 +117,21 @@ public class AionHub {
         this.blockchain = _blockchain == null ? new AionBlockchainImpl(cfg, forTest) : _blockchain;
         blockchain.setEventManager(this.eventMgr);
 
+        try {
+            loadBlockchain();
+        } catch (IllegalStateException e) {
+            genLOG.error(
+                    "Found database corruption, please re-import your database by using ./aion.sh -n <network> --redo-import",
+                    e);
+            System.exit(SystemExitCodes.DATABASE_CORRUPTION);
+        }
+
+        this.startingBlock = this.blockchain.getBestBlock();
+
+        if (blockchain.forkUtility.is040ForkActive(blockchain.getBestBlock().getNumber())) {
+            TransactionTypeRule.allowAVMContractTransaction();
+        }
+
         this.mempool =
                 forTest
                         ? AionPendingStateImpl.createForTest(
@@ -136,25 +151,7 @@ public class AionHub {
                                 cfg.getTx().isSeedMode(),
                                 cfg.getTx().getPoolDump());
 
-        try {
-            loadBlockchain();
-        } catch (IllegalStateException e) {
-            genLOG.error(
-                    "Found database corruption, please re-import your database by using ./aion.sh -n <network> --redo-import",
-                    e);
-            System.exit(SystemExitCodes.DATABASE_CORRUPTION);
-        }
-
-        if (blockchain.forkUtility.is040ForkActive(blockchain.getBestBlock().getNumber())) {
-            TransactionTypeRule.allowAVMContractTransaction();
-        }
-
-        this.startingBlock = this.blockchain.getBestBlock();
-        if (!cfg.getTx().isSeedMode()) {
-            if (cfg.getTx().getPoolBackup()) {
-                this.mempool.loadPendingTx();
-            }
-        } else {
+        if (cfg.getTx().isSeedMode()) {
             genLOG.info("Seed node mode enabled!");
         }
 
