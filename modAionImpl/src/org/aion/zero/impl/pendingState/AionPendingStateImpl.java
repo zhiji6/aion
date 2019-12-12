@@ -133,7 +133,7 @@ public class AionPendingStateImpl implements IPendingState {
 
     private AionPendingStateImpl(CfgAion _cfgAion) {
 
-        this.isSeed = _cfgAion.getConsensus().isSeed();
+        this.isSeed = _cfgAion.getTx().isSeedMode();
 
         if (!isSeed) {
 

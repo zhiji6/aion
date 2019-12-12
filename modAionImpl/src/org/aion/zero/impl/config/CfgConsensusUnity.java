@@ -1,6 +1,5 @@
 package org.aion.zero.impl.config;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -20,12 +19,9 @@ public final class CfgConsensusUnity {
         this.cpuMineThreads = 1;
         this.extraData = "AION";
         this.cfgEnergyStrategy = new CfgEnergyStrategy();
-        this.seed = false;
     }
 
     private boolean mining;
-
-    private boolean seed;
 
     private String minerAddress;
 
@@ -43,9 +39,6 @@ public final class CfgConsensusUnity {
                     switch (elementName) {
                         case "mining":
                             this.mining = Boolean.parseBoolean(ConfigUtil.readValue(sr));
-                            break;
-                        case "seed":
-                            this.seed = Boolean.parseBoolean(ConfigUtil.readValue(sr));
                             break;
                         case "miner-address":
                             this.minerAddress = ConfigUtil.readValue(sr);
@@ -154,14 +147,5 @@ public final class CfgConsensusUnity {
 
     public CfgEnergyStrategy getEnergyStrategy() {
         return this.cfgEnergyStrategy;
-    }
-
-    public boolean isSeed() {
-        return seed;
-    }
-
-    @VisibleForTesting
-    public void setSeed(final boolean value) {
-        seed = value;
     }
 }
