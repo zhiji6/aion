@@ -341,7 +341,14 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
+                        AionPendingStateImpl.createForTest(
+                                anotherBundle.bc,
+                                CfgAion.inst().getConsensus().getEnergyStrategy().getUpperBound(),
+                                CfgAion.inst().getTx().getTxPendingTimeout(),
+                                CfgAion.inst().getTx().getCacheMax(),
+                                CfgAion.inst().getTx().getPoolBackup(),
+                                CfgAion.inst().getTx().isSeedMode(),
+                                CfgAion.inst().getTx().getPoolDump()));
 
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
                 .isEqualTo(BlockPropagationHandler.PropStatus.CONNECTED);
@@ -408,8 +415,14 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
-
+                        AionPendingStateImpl.createForTest(
+                                anotherBundle.bc,
+                                CfgAion.inst().getConsensus().getEnergyStrategy().getUpperBound(),
+                                CfgAion.inst().getTx().getTxPendingTimeout(),
+                                CfgAion.inst().getTx().getCacheMax(),
+                                CfgAion.inst().getTx().getPoolBackup(),
+                                CfgAion.inst().getTx().isSeedMode(),
+                                CfgAion.inst().getTx().getPoolDump()));
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
                 .isEqualTo(BlockPropagationHandler.PropStatus.PROP_CONNECTED);
@@ -471,8 +484,14 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
-
+                        AionPendingStateImpl.createForTest(
+                                anotherBundle.bc,
+                                CfgAion.inst().getConsensus().getEnergyStrategy().getUpperBound(),
+                                CfgAion.inst().getTx().getTxPendingTimeout(),
+                                CfgAion.inst().getTx().getCacheMax(),
+                                CfgAion.inst().getTx().getPoolBackup(),
+                                CfgAion.inst().getTx().isSeedMode(),
+                                CfgAion.inst().getTx().getPoolDump()));
         // block is processed
         assertThat(handler.processIncomingBlock(senderMock.getIdHash(), "test", block))
                 .isEqualTo(BlockPropagationHandler.PropStatus.PROP_CONNECTED);
@@ -529,8 +548,14 @@ public class BlockPropagationTest {
                         anotherBundle.bc.getBlockHeaderValidator(),
                         false,
                         (byte) 2,
-                        AionPendingStateImpl.createForTest(CfgAion.inst(), anotherBundle.bc));
-
+                        AionPendingStateImpl.createForTest(
+                                anotherBundle.bc,
+                                CfgAion.inst().getConsensus().getEnergyStrategy().getUpperBound(),
+                                CfgAion.inst().getTx().getTxPendingTimeout(),
+                                CfgAion.inst().getTx().getCacheMax(),
+                                CfgAion.inst().getTx().getPoolBackup(),
+                                CfgAion.inst().getTx().isSeedMode(),
+                                CfgAion.inst().getTx().getPoolDump()));
         // pretend that we propagate the new block
         handler.propagateNewBlock(block); // send counter incremented
 
