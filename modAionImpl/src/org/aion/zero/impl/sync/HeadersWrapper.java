@@ -33,4 +33,15 @@ final class HeadersWrapper {
         this.size = headers.size();
         this.timestamp = System.currentTimeMillis();
     }
+
+    @Override
+    public String toString() {
+        return "HeadersWrapper{" +
+                "nodeId=" + nodeId +
+                ", displayId='" + displayId + '\'' +
+                ", timestamp=" + timestamp +
+                ", size=" + size +
+//                ", \nheaders=" + headers +
+                '}';
+    }
 }

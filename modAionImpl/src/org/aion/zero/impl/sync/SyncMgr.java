@@ -335,6 +335,19 @@ public final class SyncMgr {
             Block block = BlockUtil.newBlockWithHeaderFromUnsafeSource(headerIt.next(), bodyIt.next());
             if (block == null) {
                 log.warn("<assemble-and-validate-blocks node={} size={}>", _displayId, _bodies.size());
+                log.warn(
+                        "Peer display={}, id={}, data={}",
+                        _displayId,
+                        _nodeIdHashcode,
+                        p2pMgr.getActiveNodes().get(_nodeIdHashcode));
+                log.warn("HeadersWrapper: {}", hw);
+                log.warn("Headers: {}", headers);
+                log.warn("Bodies: ");
+                int i = 0;
+                for (byte[] body : _bodies) {
+                    log.warn("index {} data={}", i++, Arrays.toString(body));
+                }
+                System.exit(1);
                 break;
             } else {
                 blocks.add(block);
