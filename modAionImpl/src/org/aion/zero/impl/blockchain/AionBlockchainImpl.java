@@ -1717,7 +1717,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
                 if (txs.parallelStream()
                         .anyMatch(
                                 tx ->
-                                    !TXValidator.isValid(tx, unityForkEnabled)
+                                    TXValidator.validateTx(tx, unityForkEnabled).isFail()
                                                 || !TransactionTypeValidator.isValid(tx)
                                                 || !beaconHashValidator.validateTxForBlock(tx, block))) {
                     LOG.error("Some transactions in the block are invalid");
@@ -1725,7 +1725,7 @@ public class AionBlockchainImpl implements IAionBlockchain {
                     for (AionTransaction tx : txs) {
                         TX_LOG.debug(
                                 "Tx valid ["
-                                        + TXValidator.isValid(tx, unityForkEnabled)
+                                        + !TXValidator.validateTx(tx, unityForkEnabled).isFail()
                                         + "]. Type valid ["
                                         + TransactionTypeValidator.isValid(tx)
                                         + "]\n"

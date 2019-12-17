@@ -41,6 +41,7 @@ public class PendingStateTest {
     private StandaloneBlockchain blockchain;
     private ECKey deployerKey;
     private AionPendingStateImpl pendingState;
+    private long energyPrice = 10_000_000_000L;
 
     @BeforeClass
     public static void setup() {
@@ -82,10 +83,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         new byte[0],
                         1_000_000L,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.SUCCESS);
     }
 
     @Test
@@ -100,10 +101,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         new byte[0],
                         1_000_000L,
-                        1L,
+                        energyPrice - 1,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.INVALID_TX_NRG_PRICE);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.INVALID_TX_NRG_PRICE);
     }
 
     @Test
@@ -122,10 +123,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         jar,
                         5_000_000,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.AVM_CREATE_CODE, null);
 
-        assertEquals(pendingState.addPendingTransaction(transaction), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(transaction), TxResponse.SUCCESS);
     }
 
     @Test
@@ -144,10 +145,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         jar,
                         5_000_000,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.AVM_CREATE_CODE, null);
 
-        assertEquals(pendingState.addPendingTransaction(createTransaction), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(createTransaction), TxResponse.SUCCESS);
 
         AionBlock block =
                 blockchain.createNewMiningBlock(
@@ -174,10 +175,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         call,
                         2_000_000,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(callTransaction), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(callTransaction), TxResponse.SUCCESS);
     }
 
     private AionTransaction genTransactionWithTimestamp(byte[] nonce, ECKey key, byte[] timeStamp) {
@@ -188,7 +189,7 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT,
                 timeStamp, null);
     }
@@ -201,7 +202,7 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
     }
 
@@ -216,7 +217,7 @@ public class PendingStateTest {
             nonce[Long.BYTES - 1] = (byte) i;
             AionTransaction tx = genTransactionWithTimestamp(nonce, deployerKey, timeStamp);
 
-            pendingState.addPendingTransaction(tx);
+            pendingState.addTransactionFromApiServer(tx);
         }
 
         timeStamp = ByteUtil.longToBytes(TimeInstant.now().toEpochMicro());
@@ -225,7 +226,7 @@ public class PendingStateTest {
             nonce[Long.BYTES - 1] = (byte) i;
             AionTransaction tx = genTransactionWithTimestamp(nonce, deployerKey2, timeStamp);
 
-            pendingState.addPendingTransaction(tx);
+            pendingState.addTransactionFromApiServer(tx);
         }
 
         timeStamp = ByteUtil.longToBytes(TimeInstant.now().toEpochMicro());
@@ -234,7 +235,7 @@ public class PendingStateTest {
             nonce[Long.BYTES - 1] = (byte) i;
             AionTransaction tx = genTransactionWithTimestamp(nonce, deployerKey, timeStamp);
 
-            pendingState.addPendingTransaction(tx);
+            pendingState.addTransactionFromApiServer(tx);
         }
 
         timeStamp = ByteUtil.longToBytes(TimeInstant.now().toEpochMicro());
@@ -243,7 +244,7 @@ public class PendingStateTest {
             nonce[Long.BYTES - 1] = (byte) i;
             AionTransaction tx = genTransactionWithTimestamp(nonce, deployerKey2, timeStamp);
 
-            pendingState.addPendingTransaction(tx);
+            pendingState.addTransactionFromApiServer(tx);
         }
 
         assertEquals(pendingState.getPendingTxSize(), cnt * 4);
@@ -259,11 +260,11 @@ public class PendingStateTest {
                     ByteUtils.fromHexString("1"),
                     ByteUtils.fromHexString("1"),
                     1000_000L,
-                    10_000_000_000L,
+                    energyPrice,
                     TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.SUCCESS);
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.REPAYTX_LOWPRICE);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.REPAYTX_LOWPRICE);
 
         assertEquals(1, pendingState.getPendingTxSize());
     }
@@ -275,13 +276,13 @@ public class PendingStateTest {
             byte[] nonce = new byte[Long.BYTES];
             nonce[Long.BYTES - 1] = (byte) i;
 
-            assertEquals(pendingState.addPendingTransaction(genTransaction(nonce)), TxResponse.SUCCESS);
+            assertEquals(pendingState.addTransactionFromApiServer(genTransaction(nonce)), TxResponse.SUCCESS);
         }
 
         assertEquals(pendingState.getPendingTxSize(), cnt);
 
         AionTransaction tx = genTransaction(BigInteger.TWO.toByteArray());
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.REPAYTX_LOWPRICE);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.REPAYTX_LOWPRICE);
 
         assertEquals(pendingState.getPendingTxSize(), cnt);
         assertNotEquals(pendingState.getPendingTransactions().get(2), tx);
@@ -293,8 +294,8 @@ public class PendingStateTest {
         AionTransaction tx = genTransaction(BigInteger.ZERO.toByteArray());
         AionTransaction tx2 = genTransaction(BigInteger.ZERO.toByteArray());
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.SUCCESS);
-        assertEquals(pendingState.addPendingTransaction(tx2), TxResponse.REPAYTX_LOWPRICE);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(tx2), TxResponse.REPAYTX_LOWPRICE);
 
         assertEquals(1, pendingState.getPendingTxSize());
 
@@ -313,11 +314,11 @@ public class PendingStateTest {
                         ByteUtils.fromHexString("1"),
                         ByteUtils.fromHexString("1"),
                         1000_000L,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.CACHED_NONCE);
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.ALREADY_CACHED);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.CACHED_NONCE);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.ALREADY_CACHED);
     }
 
     @Test
@@ -330,10 +331,10 @@ public class PendingStateTest {
                         ByteUtils.fromHexString("1"),
                         ByteUtils.fromHexString("1"),
                         10L,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.INVALID_TX);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.INVALID_TX_NRG_LIMIT);
     }
 
     @Test
@@ -346,7 +347,7 @@ public class PendingStateTest {
                         ByteUtils.fromHexString("1"),
                         ByteUtils.fromHexString("1"),
                         1000_000L,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -357,10 +358,10 @@ public class PendingStateTest {
                         ByteUtils.fromHexString("2"),
                         ByteUtils.fromHexString("2"),
                         1000_000L,
-                        20_000_000_000L,
+                        energyPrice * 2,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.SUCCESS);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.SUCCESS);
 
         AionBlock block =
             blockchain.createNewMiningBlock(
@@ -368,8 +369,8 @@ public class PendingStateTest {
         Pair<ImportResult, AionBlockSummary> connectResult = blockchain.tryToConnectAndFetchSummary(block);
 
         assertEquals(connectResult.getLeft(), ImportResult.IMPORTED_BEST);
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.ALREADY_SEALED);
-        assertEquals(pendingState.addPendingTransaction(tx2), TxResponse.ALREADY_SEALED);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.ALREADY_SEALED);
+        assertEquals(pendingState.addTransactionFromApiServer(tx2), TxResponse.ALREADY_SEALED);
     }
 
     @Test
@@ -393,11 +394,11 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                19_999_999_999L,
+                energyPrice * 2 - 1,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.REPAYTX_LOWPRICE, pendingState.addPendingTransaction(tx2));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.REPAYTX_LOWPRICE, pendingState.addTransactionFromApiServer(tx2));
         assertEquals(1, pendingState.getPendingTxSize());
     }
 
@@ -411,7 +412,7 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -422,11 +423,11 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                20_000_000_000L,
+                energyPrice * 2,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.REPAID, pendingState.addPendingTransaction(tx2));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.REPAID, pendingState.addTransactionFromApiServer(tx2));
         assertEquals(1, pendingState.getPendingTxSize());
         // tx2 will get cached and will replace tx1 if tx1 is not included in the next block.
         assertEquals(pendingState.getPendingTransactions().get(0), tx1);
@@ -451,7 +452,7 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -462,11 +463,11 @@ public class PendingStateTest {
                 ByteUtils.fromHexString("1"),
                 ByteUtils.fromHexString("1"),
                 1000_000L,
-                20_000_000_000L,
+                energyPrice * 2,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.REPAID, pendingState.addPendingTransaction(tx2));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.REPAID, pendingState.addTransactionFromApiServer(tx2));
         assertEquals(1, pendingState.getPendingTxSize());
         // tx2 will get cached and will replace tx1 if tx1 is not included in the next block.
         assertEquals(pendingState.getPendingTransactions().get(0), tx1);
@@ -484,7 +485,7 @@ public class PendingStateTest {
     @Test
     public void replayTransactionThatUsesEntireBalance() {
         BigInteger balance = blockchain.getRepository().getBalance(new AionAddress(deployerKey.getAddress()));
-        BigInteger value = balance.subtract(BigInteger.valueOf(21000*3).multiply(BigInteger.valueOf(10_000_000_000L)));
+        BigInteger value = balance.subtract(BigInteger.valueOf(21000*3).multiply(BigInteger.valueOf(energyPrice)));
 
         AionTransaction tx1 =
             AionTransaction.create(
@@ -494,7 +495,7 @@ public class PendingStateTest {
                 value.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -505,7 +506,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         /* tx1 and tx3 should use the entire balance. If tx2 is removed properly, tx3 should be
@@ -518,7 +519,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                20_000_000_000L,
+                energyPrice * 2,
                 TransactionTypes.DEFAULT, null);
 
         // This would execute fine on top of tx2, but should have insufficient balance on top of tx3
@@ -530,13 +531,13 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx2));
-        assertEquals(TxResponse.REPAID, pendingState.addPendingTransaction(tx3));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx4));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx2));
+        assertEquals(TxResponse.REPAID, pendingState.addTransactionFromApiServer(tx3));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx4));
         assertEquals(3, pendingState.getPendingTxSize());
 
         AionBlock block =
@@ -554,7 +555,7 @@ public class PendingStateTest {
     @Test
     public void replayTransactionThatThatInvalidatesMiddleTx() {
         BigInteger balance = blockchain.getRepository().getBalance(new AionAddress(deployerKey.getAddress()));
-        BigInteger value = balance.subtract(BigInteger.valueOf(21000*7).multiply(BigInteger.valueOf(10_000_000_000L)));
+        BigInteger value = balance.subtract(BigInteger.valueOf(21000*7).multiply(BigInteger.valueOf(energyPrice)));
 
         AionTransaction tx1 =
             AionTransaction.create(
@@ -564,7 +565,7 @@ public class PendingStateTest {
                 value.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -575,7 +576,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         /* tx1 and tx3 should use the entire balance. If tx2 is removed properly, tx3 should be
@@ -588,7 +589,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                40_000_000_000L,
+                energyPrice * 4,
                 TransactionTypes.DEFAULT, null);
 
         // This would execute fine on top of tx2, but should have insufficient balance on top of tx3
@@ -600,7 +601,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                40_000_000_000L,
+                energyPrice * 4,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx5 =
@@ -611,14 +612,14 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx2));
-        assertEquals(TxResponse.REPAID, pendingState.addPendingTransaction(tx3));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx4));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx5));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx2));
+        assertEquals(TxResponse.REPAID, pendingState.addTransactionFromApiServer(tx3));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx4));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx5));
         assertEquals(4, pendingState.getPendingTxSize());
 
         AionBlock block =
@@ -636,7 +637,7 @@ public class PendingStateTest {
     @Test
     public void replayInvalidTransactionInMiddle() {
         BigInteger balance = blockchain.getRepository().getBalance(new AionAddress(deployerKey.getAddress()));
-        BigInteger value = balance.subtract(BigInteger.valueOf(21000*3).multiply(BigInteger.valueOf(10_000_000_000L)));
+        BigInteger value = balance.subtract(BigInteger.valueOf(21000*3).multiply(BigInteger.valueOf(energyPrice)));
 
         AionTransaction tx1 =
             AionTransaction.create(
@@ -646,7 +647,7 @@ public class PendingStateTest {
                 value.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx2 =
@@ -657,7 +658,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
         AionTransaction tx3 =
@@ -668,7 +669,7 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                40_000_000_000L,
+                energyPrice * 4,
                 TransactionTypes.DEFAULT, null);
 
         // This tx will get dropped after tx3 is rejected
@@ -680,13 +681,13 @@ public class PendingStateTest {
                 BigInteger.ZERO.toByteArray(),
                 new byte[0],
                 21000,
-                10_000_000_000L,
+                energyPrice,
                 TransactionTypes.DEFAULT, null);
 
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx1));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx2));
-        assertEquals(TxResponse.REPAID, pendingState.addPendingTransaction(tx3));
-        assertEquals(TxResponse.SUCCESS, pendingState.addPendingTransaction(tx4));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx1));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx2));
+        assertEquals(TxResponse.REPAID, pendingState.addTransactionFromApiServer(tx3));
+        assertEquals(TxResponse.SUCCESS, pendingState.addTransactionFromApiServer(tx4));
         assertEquals(3, pendingState.getPendingTxSize());
 
         AionBlock block =
@@ -709,10 +710,10 @@ public class PendingStateTest {
                         BigInteger.ZERO.toByteArray(),
                         ByteUtils.fromHexString("1"),
                         21_000L,
-                        10_000_000_000L,
+                        energyPrice,
                         TransactionTypes.DEFAULT, null);
 
-        assertEquals(pendingState.addPendingTransaction(tx), TxResponse.DROPPED);
+        assertEquals(pendingState.addTransactionFromApiServer(tx), TxResponse.DROPPED);
 
         AionBlock block =
             blockchain.createNewMiningBlock(
